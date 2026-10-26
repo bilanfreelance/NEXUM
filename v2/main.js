@@ -205,32 +205,22 @@ const P_FRAG = /* glsl */`
   }`;
 
 const I_VERT = /* glsl */`
-  uniform float uVel; varying vec2 vUv;
-  void main(){ vUv=uv; vec4 wp=modelMatrix*vec4(position,1.);
-    wp.y+=sin(uv.x*3.14159)*uVel*-60.;
-    wp.x+=sin(uv.y*3.14159)*uVel*0.;
-    gl_Position=projectionMatrix*viewMatrix*wp; }`;
-const I_FRAG = /* glsl */`
-  uniform sampler2D uTex; uniform vec2 uPlane,uImg,uMouse,uPos; uniform float uZoom,uShift,uVel,uHover,uReveal,uTime,uOpacity;
   varying vec2 vUv;
-  ${NOISE}
+  void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`;
+const I_FRAG = /* glsl */`
+  uniform sampler2D uTex; uniform vec2 uPlane,uImg,uPos; uniform float uZoom,uShift,uHover,uReveal,uTime,uOpacity,uSeed;
+  varying vec2 vUv;
   vec2 cover(vec2 uv){ float rs=uPlane.x/uPlane.y, ri=uImg.x/uImg.y;
     vec2 s= rs>ri ? vec2(1., ri/rs) : vec2(rs/ri, 1.);
-    vec2 off=(1.-s)*uPos; return uv*s+off; }
+    return uv*s+(1.-s)*uPos; }
   void main(){
-    vec2 uv=vUv;
-    vec2 dm=uv-uMouse; float dist=length(dm*vec2(uPlane.x/uPlane.y,1.));
-    uv+=normalize(dm+1e-5)*sin(dist*26.-uTime*5.)*.007*uHover*smoothstep(.55,0.,dist);
-    vec2 zuv=(uv-.5)/(uZoom+uHover*.05)+.5+vec2(0.,uShift);
-    vec2 cuv=cover(zuv);
-    float sh=.0015+abs(uVel)*.018+uHover*.003;
-    vec3 col=vec3(texture2D(uTex,cuv+vec2(sh,0.)).r, texture2D(uTex,cuv).g, texture2D(uTex,cuv-vec2(sh,0.)).b);
-    float n=fbm(vUv*vec2(uPlane.x/uPlane.y,1.)*3.5+3.1);
-    float th=uReveal*1.25-.12;
-    float a=smoothstep(n-.012,n+.012,th);
-    float edge=(1.-smoothstep(0.,.022,abs(th-n)))*step(.01,uReveal)*step(uReveal,.985);
-    col+=vec3(1.,.42,.21)*edge;
-    float al=max(a,edge)*uOpacity;
+    float r=smoothstep(0.,1.,uReveal);
+    float breathe=.018*sin(uTime*.35+uSeed*6.28);
+    vec2 drift=vec2(sin(uTime*.22+uSeed*4.),cos(uTime*.18+uSeed*3.))*.008;
+    float z=uZoom+breathe+uHover*.045+(1.-r)*.12;
+    vec2 uv=(vUv-.5)/z+.5+vec2(0.,uShift)+drift;
+    vec3 col=texture2D(uTex,cover(uv)).rgb;
+    float al=r*uOpacity;
     gl_FragColor=vec4(col*al,al);
   }`;
 
@@ -241,7 +231,7 @@ const Q_FRAG = /* glsl */`
   ${NOISE}
   void main(){
     vec2 uv=vUv, c=uv-.5;
-    float ca=.0007+min(abs(uVel),1.)*.0065;
+    float ca=.0004+min(abs(uVel),1.)*.0025;
     vec4 base=texture2D(tScene,uv);
     vec3 s=vec3(texture2D(tScene,uv+c*ca).r, base.g, texture2D(tScene,uv-c*ca).b);
     // bloom-lite: two rings of taps
@@ -330,7 +320,7 @@ function initPlanes() {
       vertexShader: I_VERT, fragmentShader: I_FRAG, transparent: true, depthTest: false, depthWrite: false,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
       uniforms: { uTex: { value: null }, uPlane: { value: new THREE.Vector2(1, 1) }, uImg: { value: new THREE.Vector2(1, 1) }, uMouse: { value: new THREE.Vector2(.5, .5) }, uPos: { value: new THREE.Vector2(.5, .5) },
-        uZoom: { value: 1.1 }, uShift: { value: 0 }, uVel: { value: 0 }, uHover: { value: 0 }, uReveal: { value: 0 }, uTime: { value: 0 }, uOpacity: { value: 1 } },
+        uZoom: { value: 1.1 }, uShift: { value: 0 }, uHover: { value: 0 }, uReveal: { value: 0 }, uTime: { value: 0 }, uOpacity: { value: 1 }, uSeed: { value: Math.random() } },
     });
     const pos = (el.dataset.pos || '50% 50%').split(' ').map(v => parseFloat(v) / 100);
     mat.uniforms.uPos.value.set(pos[0], 1 - pos[1]);
@@ -354,17 +344,16 @@ function updatePlanes(dt, time, vel) {
     p.mesh.visible = vis;
     if (!vis) continue;
     if (r.top < vh * .95 && r.left < vw * .95) p.revealT = 1;
-    p.reveal = Math.min(p.revealT, p.reveal + dt * .85 * p.revealT);
-    p.hover += (p.hoverT - p.hover) * k;
+    p.reveal = Math.min(p.revealT, p.reveal + dt * .7 * p.revealT);
+    p.hover += (p.hoverT - p.hover) * (1 - Math.exp(-dt * 3));
     const u = p.mat.uniforms;
     p.mesh.position.set(r.left + r.width / 2 - vw / 2, -(r.top + r.height / 2) + vh / 2, 0);
     p.mesh.scale.set(r.width, r.height, 1);
     u.uPlane.value.set(r.width, r.height);
     const prog = clamp((r.top + r.height) / (vh + r.height));
-    u.uShift.value = (prog - .5) * .07;
+    u.uShift.value = (prog - .5) * .05;
     u.uZoom.value = 1.1;
-    u.uVel.value = vel; u.uHover.value = p.hover; u.uReveal.value = p.reveal; u.uTime.value = time;
-    u.uMouse.value.set(p.mx, p.my);
+    u.uHover.value = p.hover; u.uReveal.value = p.reveal; u.uTime.value = time;
   }
 }
 
@@ -420,7 +409,7 @@ function scramble(node, dur = .8) {
 const hud = { el: $('#hud'), num: $('#hudNum'), name: $('#hudName'), type: $('#hudType'), marker: $('#railMarker'), scale: $('#railScale'), labels: $$('.rail__track span'), rail: $('#rail') };
 let lastScene = '', lastType = '', lastLight = -1, footIn = false;
 let mxN = 9, myN = 9, mxS = 0, myS = 0, tmx = 0, tmy = 0;
-const heroImg = $('.hero__product'), ctaImg = $('.cta__img');
+const heroImg = $('.hero__product'), ctaImg = $('.cta__img'), lensHot = $$('.hot')[1];
 const sig1 = $('#sigPath'), sig2 = $('#sigPath2'), sigVal = $('#sigVal');
 
 function preload(urls, onP) {
@@ -520,6 +509,15 @@ function startScroll(splits) {
     ScrollTrigger.create({ trigger: k, start: 'top 90%', onEnter: () => scramble(span), onEnterBack: () => scramble(span, .5) });
   });
 
+  if (finePointer) {
+    const hx = gsap.quickTo('#heroMouse', 'x', { duration: 1.2, ease: 'power3' }), hy = gsap.quickTo('#heroMouse', 'y', { duration: 1.2, ease: 'power3' });
+    const hr = gsap.quickTo('#heroMouse', 'rotation', { duration: 1.4, ease: 'power3' });
+    const tx = gsap.quickTo('.hero__line', 'x', { duration: 1.6, ease: 'power3' });
+    addEventListener('pointermove', e => {
+      const nx = e.clientX / innerWidth - .5, ny = e.clientY / innerHeight - .5;
+      hx(nx * 46); hy(ny * 30); hr(nx * 2.2); tx(nx * -18);
+    }, { passive: true });
+  }
   gsap.to('#heroPar', { yPercent: -12, scale: 1.05, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
   gsap.to('.hero__line.l1', { xPercent: -14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
   gsap.to('.hero__line.l2', { xPercent: 14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
@@ -527,6 +525,8 @@ function startScroll(splits) {
   const mq = gsap.to('#marquee', { xPercent: -50, duration: 22, ease: 'none', repeat: -1 });
   lenis.on('scroll', e => { gsap.to(mq, { timeScale: 1 + Math.min(Math.abs(e.velocity) * .25, 6), duration: .2, overwrite: true }); gsap.to(mq, { timeScale: 1, duration: 1.2, delay: .2 }); });
 
+  gsap.fromTo('#lwLi', { xPercent: -115, opacity: 0 }, { xPercent: 0, opacity: 1, ease: 'power3.out', scrollTrigger: { trigger: '#lens', start: 'top 95%', end: 'top 5%', scrub: 1.2 } });
+  gsap.fromTo('#lwRi', { xPercent: 115, opacity: 0 }, { xPercent: 0, opacity: 1, ease: 'power3.out', scrollTrigger: { trigger: '#lens', start: 'top 85%', end: 'top -5%', scrub: 1.2 } });
   const ltl = gsap.timeline({ scrollTrigger: { trigger: '#lens .pinblock', start: 'top top', end: 'bottom bottom', scrub: true } });
   ltl.fromTo('#lwL', { xPercent: 0 }, { xPercent: -95, ease: 'power2.in', duration: 1 }, .25)
     .fromTo('#lwR', { xPercent: 0 }, { xPercent: 95, ease: 'power2.in', duration: 1 }, .25)
@@ -628,6 +628,8 @@ function frame(s, time, dt, vel) {
   const heroA = curve(C.heroA, s);
   let gx = mobile ? 0 : curve(C.gx, s), gy = mobile ? curve(C.gx, s) * .55 : 0;
   if (heroA > 0) { const [ax, ay] = anchorOf(heroImg); gx = lerp(gx, ax, heroA); gy = lerp(gy, ay, heroA); }
+  const intoLens = curve([[10.6, 0], [11.05, 1], [11.4, 1], [11.6, 0]], s);
+  if (intoLens > 0 && lensHot) { const [ax, ay] = anchorOf(lensHot); gx = lerp(gx, ax, intoLens); gy = lerp(gy, ay, intoLens); }
   if (halo > 0) { const [ax, ay] = anchorOf(ctaImg); gx = lerp(gx, ax, halo); gy = lerp(gy, ay, halo); }
   gl.holder.position.set(gx, gy, curve(C.gz, s));
   const spin = curve(C.spin, s);
