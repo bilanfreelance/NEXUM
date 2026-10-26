@@ -1,516 +1,441 @@
-/* NEXUM M1 — scroll story engine
-   One pinned stage, one scroll value `u` (1u ≈ 100vh of scroll on desktop).
-   Product frames and micro frames are "camera tracks": every frame knows the
-   log-zoom (z) at which it fills the reference width, and its focus point
-   (fx, fy). The camera zoom C(u) decides scale + crossfade of every frame,
-   so scrolling forward and backward is always the same deterministic state. */
+/* NEXUM M1 — GPU particle story.
+   One fixed WebGL canvas behind the page. 42k particles hold five shapes at once
+   (objective barrel, spore, gyroid, molecule, orbital) and morph between them in
+   the vertex shader, driven by a single damped scroll value `s`.
+   Photos live in the DOM as editorial blocks animated with transforms only. */
 
 import * as THREE from 'three';
 
 const root = document.documentElement;
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
 if (reduced) root.classList.add('reduced');
 
-/* ---------------- helpers ---------------- */
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const lerp = (a, b, t) => a + (b - a) * t;
-const sm = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
-const easeIO = t => 0.5 - 0.5 * Math.cos(Math.PI * clamp(t));
-const easeO = t => 1 - Math.pow(1 - clamp(t), 3);
-const range = (a, b, x) => clamp((x - a) / (b - a));
+const ease = t => 0.5 - 0.5 * Math.cos(Math.PI * clamp(t));
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const piece = (pts, x) => { // piecewise linear
+const curve = (pts, x) => {
   if (x <= pts[0][0]) return pts[0][1];
   for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) {
     const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
-    return lerp(y0, y1, easeIO((x - x0) / (x1 - x0)));
+    return lerp(y0, y1, ease((x - x0) / (x1 - x0)));
   }
   return pts[pts.length - 1][1];
 };
+let mobile = innerWidth < 760;
 
-/* ---------------- frames ---------------- */
-const IMG = 'assets/img/';
-const A = [ // product track
-  { id: 'p02-product', fx: .47,  fy: .645, z: 0,    ar: 1672 / 941, cover: false, dark: 0 },
-  { id: 'p01-hero',    fx: .46,  fy: .66,  z: .49,  ar: 1.5,        cover: false, dark: 0 },
-  { id: 'p03-angle',   fx: .455, fy: .66,  z: .97,  ar: 1.5,        cover: true,  dark: 0 },
-  { id: 'p04-front',   fx: .5,   fy: .71,  z: 1.29, ar: 1672 / 941, cover: true,  dark: 1, xf: .13, blur: 1 },
-  { id: 'p05-lens',    fx: .5,   fy: .65,  z: 1.56, ar: 1618 / 910, cover: true,  dark: 1 },
-  { id: 'p06-core',    fx: .5,   fy: .52,  z: 2.1,  ar: 1672 / 941, cover: true,  dark: 1 },
-];
-const B = [ // micro track
-  { id: 'm01', fx: .50, fy: .48, z: 0 },
-  { id: 'm02', fx: .56, fy: .52, z: .51 },
-  { id: 'm03', fx: .53, fy: .60, z: .76 },
-  { id: 'm04', fx: .55, fy: .68, z: 1.02 },
-  { id: 'm05', fx: .55, fy: .50, z: 1.44 },
-  { id: 'm06', fx: .45, fy: .50, z: 1.80 },
-  { id: 'm07', fx: .50, fy: .50, z: 2.12 },
-  { id: 'm08', fx: .50, fy: .50, z: 2.44 },
-  { id: 'm09', fx: .68, fy: .45, z: 2.76 },
-].map(f => ({ ...f, ar: 1672 / 941, cover: true, dark: 1 }));
-
-/* ---------------- timeline (u) ---------------- */
-const T = {
-  total: 20.4,
-  camA: [0.1, 4.4], cA: [-0.18, 2.8],
-  portal: [3.5, 4.4],
-  camB: [3.5, 10.6], cB: [-0.1, 3.15],
-  whiteIn: [9.9, 10.6],
-  molIn: [10.4, 11.1], morph: [12.4, 13.3], collapse: [14.4, 15.1],
-  whiteOut: [14.5, 15.1], glowIn: [14.45, 15.2], glowOut: [15.45, 15.95],
-  retMask: [15.0, 15.85], camR: [15.0, 18.0], cR: [2.95, -0.36],
-  retS: [16.7, 18.0],
+/* ============ story curves (in "key" units, see .k markers) ============ */
+const C = {
+  opacity: [[0.8, 0], [1.08, 1], [3.05, 1], [3.25, .3], [3.85, .3], [4.05, 0], [4.7, 0], [5.0, 1], [11.0, 1], [11.35, 0]],
+  shape: [[2.0, 0], [2.5, 1], [4.6, 1], [4.95, 2], [6.6, 2], [7.05, 3], [8.55, 3], [9.05, 4], [10.55, 4], [11.15, 5]],
+  dark: [[1.3, 0], [1.5, 1], [6.62, 1], [6.82, 0]],
+  gz: [[1.12, 0], [2.02, 34], [2.5, 0]],
+  gx: [[1.0, 2.4], [1.3, 0], [2.25, 0], [2.6, 2.9], [4.6, 2.9], [5.0, 0], [6.6, 0], [7.05, 3], [10.55, 3], [11.1, 0]],
+  rotY: [[1.0, -.75], [1.3, 0]],
+  spin: [[2.1, 0], [2.5, 1]],
+  depth: [[0, 0], [1.6, .25], [2.4, .5], [6.6, .5], [7.05, .75], [8.6, .75], [9.05, 1], [10.6, 1], [11.3, 0]],
 };
-const SCENES = [
-  [0, '01', 'SEE BEYOND'], [0.8, '02', 'INTO THE LENS'], [3.9, '03', 'A WORLD WITHIN'],
-  [6.5, '04', 'LAYERS OF DETAIL'], [10.4, '05', 'BEYOND THE VISIBLE'], [15.2, '06', 'ENGINEERED TO REVEAL'],
-];
-const DEPTH = [[0, 0], [3.0, .25], [4.4, .5], [9.9, .6], [10.9, .75], [12.6, .78], [13.3, 1], [14.6, 1], [15.8, .25], [18, 0]];
-const SCALE_LABELS = ['≈ 10⁻¹ m', '≈ 10⁻² m', '≈ 10⁻⁵ m', '≈ 10⁻⁹ m', '≈ 10⁻¹⁰ m'];
+const SCENES = [[-1, '01', 'SEE BEYOND'], [0.75, '02', 'INTO THE LENS'], [2.25, '03', 'A WORLD WITHIN'], [4.4, '04', 'LAYERS OF DETAIL'],
+  [6.8, '05', 'BEYOND THE VISIBLE'], [10.9, '06', 'ENGINEERED TO REVEAL'], [11.9, '07', 'PRECISION, DEFINED'], [12.9, '08', 'LOOK CLOSER']];
+const TYPES = [[-1, 'PRODUCT RENDER · NEXUM M1'], [1.0, 'PARTICLE MODEL · OPTICAL PATH'], [2.3, 'PARTICLE MODEL · SPORE-LIKE STRUCTURE'],
+  [3.05, 'ARTISTIC VISUALIZATIONS · NOT M1 CAPTURES'], [4.85, 'MODEL · GYROID MINIMAL SURFACE'], [6.9, 'MOLECULAR MODEL · CAFFEINE C₈H₁₀N₄O₂'],
+  [8.9, 'ATOMIC MODEL · HYDROGEN 3dz² |ψ|²'], [10.9, 'PRODUCT RENDER · NEXUM M1']];
+const SCALES = ['≈ 10⁻¹ m', '≈ 10⁻² m', '≈ 10⁻⁵ m', '≈ 10⁻⁹ m', '≈ 10⁻¹⁰ m'];
 
-/* ---------------- DOM ---------------- */
-const stage = $('#stage'), journey = $('#journey');
-const grpA = $('#grpA'), intro = $('#intro'), grpB = $('#grpB');
-const white = $('#white'), glow = $('#glow'), ring = $('#ring'), stageBg = $('#stageBg');
-const hud = $('#hud'), hdr = $('#hdr'), rail = $('#rail');
-const hudNum = $('#hudNum'), hudName = $('#hudName'), hudType = $('#hudType');
-const railMarker = $('#railMarker'), railScale = $('#railScale'), railLabels = $$('.rail__track span');
-const overlays = $$('.stage .ov');
-const callouts = $$('.callout');
-const svg = $('#calloutSvg');
+/* ============ particle shapes ============ */
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.2832 * v); };
+const randSphere = () => { const z = Math.random() * 2 - 1, t = Math.random() * 6.2832, r = Math.sqrt(1 - z * z); return [r * Math.cos(t), r * Math.sin(t), z]; };
 
-function mkFrames(list, parent) {
-  return list.map(f => {
-    const img = new Image();
-    img.src = IMG + f.id + '.webp';
-    img.alt = '';
-    img.className = 'frame';
-    img.decoding = 'async';
-    img.draggable = false;
-    parent.appendChild(img);
-    return img;
-  });
-}
-const elA = mkFrames(A, intro);
-const elB = mkFrames(B, grpB);
-
-/* ---------------- viewport ---------------- */
-let vw = innerWidth, vh = innerHeight, k = vw, portrait = false, mobile = false, scrollLen = 1;
-function layout() {
-  vw = innerWidth; vh = innerHeight;
-  portrait = vw / vh < 1.05; mobile = vw < 760;
-  k = portrait ? vw * 1.95 : Math.max(vw, vh * 16 / 9);
-  const f = mobile ? 0.62 : 0.9;
-  scrollLen = T.total * f * vh;
-  journey.style.height = (scrollLen + vh) + 'px';
-  [[A, elA], [B, elB]].forEach(([list, els]) => list.forEach((fr, i) => {
-    els[i].style.width = k + 'px';
-    els[i].style.height = (k / fr.ar) + 'px';
-  }));
-  svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
-  if (gl.renderer) resizeGL();
-}
-
-/* ---------------- camera track renderer ---------------- */
-function placeTrack(list, els, C, Sx, Sy, xf) {
-  // opacities
-  const op = list.map((f, i) => i === 0 ? 1 : sm(f.z - (f.xf || xf), f.z, C));
-  const st = [];
-  let covered = false, darkTop = null;
-  for (let i = list.length - 1; i >= 0; i--) {
-    const f = list[i], el = els[i];
-    if (covered || op[i] <= 0.001) { el.style.visibility = 'hidden'; st[i] = null; continue; }
-    const w = k, h = k / f.ar;
-    let s = Math.exp(C - f.z);
-    const coverS = Math.max(vw / w, vh / h);
-    if (f.cover) s = Math.max(s, coverS);
-    let x = Sx - f.fx * w * s, y = Sy - f.fy * h * s;
-    if (w * s >= vw) x = clamp(x, vw - w * s, 0);
-    if (h * s >= vh) y = clamp(y, vh - h * s, 0);
-    el.style.visibility = 'visible';
-    el.style.opacity = op[i].toFixed(3);
-    if (f.blur) el.style.filter = op[i] < .999 ? `blur(${((1 - op[i]) * 10).toFixed(1)}px)` : '';
-    el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) scale(${s.toFixed(4)})`;
-    st[i] = { x, y, s, w, h };
-    if (darkTop === null && op[i] > .5) darkTop = f.dark;
-    if (op[i] >= .999 && s >= coverS - 1e-3) covered = true;
-  }
-  return { st, dark: darkTop ?? 0 };
-}
-
-function showGrp(el, on) { const d = on ? '' : 'none'; if (el.style.display !== d) el.style.display = d; }
-function maskGroup(el, r, feather = 80) {
-  if (r <= 0) { showGrp(el, false); return; }
-  showGrp(el, true);
-  const max = Math.hypot(vw, vh) / 2 + feather;
-  if (r >= max) { el.style.webkitMaskImage = el.style.maskImage = 'none'; return; }
-  const g = `radial-gradient(circle at ${vw / 2}px ${vh / 2}px, #000 ${Math.max(0, r - feather)}px, transparent ${r}px)`;
-  el.style.webkitMaskImage = el.style.maskImage = g;
-}
-
-/* ---------------- three.js: molecule + orbital ---------------- */
-const gl = {};
-const CAFFEINE = { "a": [["C", 3.324, 0.059, -0.234], ["N", 2.058, -0.627, -0.193], ["C", 1.868, -1.981, -0.278], ["N", 0.59, -2.298, -0.209], ["C", -0.049, -1.103, -0.076], ["C", 0.824, -0.058, -0.063], ["C", 0.414, 1.297, 0.064], ["O", 1.21, 2.232, 0.075], ["N", -0.972, 1.436, 0.174], ["C", -1.908, 0.38, 0.164], ["O", -3.118, 0.603, 0.267], ["N", -1.406, -0.916, 0.034], ["C", -2.301, -2.058, 0.016], ["C", -1.517, 2.772, 0.31], ["H", 4.13, -0.671, -0.345], ["H", 3.323, 0.739, -1.089], ["H", 3.452, 0.61, 0.701], ["H", 2.684, -2.684, -0.387], ["H", -3.348, -1.757, 0.112], ["H", -2.05, -2.722, 0.849], ["H", -2.178, -2.593, -0.931], ["H", -2.207, 2.962, -0.519], ["H", -2.079, 2.834, 1.247], ["H", -0.743, 3.544, 0.31]], "b": [[0, 1, 1], [1, 2, 1.5], [2, 3, 1.5], [3, 4, 1.5], [4, 5, 1.5], [5, 6, 1], [6, 7, 2], [6, 8, 1], [8, 9, 1], [9, 10, 2], [9, 11, 1], [11, 12, 1], [8, 13, 1], [5, 1, 1.5], [11, 4, 1], [0, 14, 1], [0, 15, 1], [0, 16, 1], [2, 17, 1], [12, 18, 1], [12, 19, 1], [12, 20, 1], [13, 21, 1], [13, 22, 1], [13, 23, 1]] };
-
-function initGL() {
-  const canvas = $('#gl');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  const scene = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(32, 1, .1, 100);
-  cam.position.set(0, 0, 15);
-
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d9d9, 1.6));
-  const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(4, 6, 8); scene.add(key);
-  const rim = new THREE.DirectionalLight(0xffb48a, 1.1); rim.position.set(-6, -2, -5); scene.add(rim);
-
-  const holder = new THREE.Group(); scene.add(holder);
-
-  // molecule
-  const mol = new THREE.Group(); holder.add(mol);
-  const COL = { C: 0x2b2b2b, N: 0x9a9a9a, O: 0xff6b35, H: 0xf4f4f4 };
-  const RAD = { C: .36, N: .34, O: .34, H: .2 };
-  const sph = new THREE.SphereGeometry(1, 40, 28);
-  const mats = {};
-  for (const e in COL) mats[e] = new THREE.MeshPhysicalMaterial({ color: COL[e], roughness: e === 'H' ? .35 : .28, metalness: e === 'C' ? .15 : 0, clearcoat: .6, clearcoatRoughness: .25 });
-  const P = CAFFEINE.a.map(([e, x, y, z]) => new THREE.Vector3(x, y, z));
-  CAFFEINE.a.forEach(([e], i) => { const m = new THREE.Mesh(sph, mats[e]); m.position.copy(P[i]); m.scale.setScalar(RAD[e]); mol.add(m); });
-  const cyl = new THREE.CylinderGeometry(1, 1, 1, 14);
-  const bondMat = new THREE.MeshStandardMaterial({ color: 0xbdbdbd, roughness: .4, metalness: .2 });
-  const up = new THREE.Vector3(0, 1, 0);
-  CAFFEINE.b.forEach(([a, b, o]) => {
-    const pa = P[a], pb = P[b], d = pb.clone().sub(pa), len = d.length();
-    const q = new THREE.Quaternion().setFromUnitVectors(up, d.clone().normalize());
-    const off = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0, 0, 1)).normalize().multiplyScalar(.1);
-    const n = o === 2 ? 2 : 1, r = o === 1.5 ? .085 : .06;
-    for (let j = 0; j < n; j++) {
-      const m = new THREE.Mesh(cyl, bondMat);
-      m.position.copy(pa).addScaledVector(d, .5);
-      if (n === 2) m.position.addScaledVector(off, j ? 1 : -1);
-      m.quaternion.copy(q); m.scale.set(r, len, r);
-      mol.add(m);
+function shBarrel(N) { // objective barrel: rings + lens discs + glowing core at the end
+  const a = new Float32Array(N * 4), K = 18, step = 1.5, off = 4;
+  const rad = k => 2.3 + .7 * Math.sin(k * .75) + (k % 5 === 0 ? .35 : 0);
+  for (let i = 0; i < N; i++) {
+    const r = Math.random(); let x, y, z, w;
+    if (r < .68) {
+      const k = (Math.random() * K) | 0, band = k === 4 || k === 11, th = Math.random() * 6.2832, rr = rad(k) + (Math.random() - .5) * .07;
+      x = Math.cos(th) * rr; y = Math.sin(th) * rr; z = -k * step + (Math.random() - .5) * (band ? .55 : .08); w = band ? .95 : (k % 3 === 0 ? -.55 : 0);
+    } else if (r < .86) {
+      const k = [2, 7, 13][(Math.random() * 3) | 0], R = rad(k) * .93, q = Math.sqrt(Math.random()) * R, th = Math.random() * 6.2832;
+      x = Math.cos(th) * q; y = Math.sin(th) * q; z = -k * step + .4 * (1 - (q / R) ** 2); w = -.72;
+    } else {
+      x = gauss() * .22; y = gauss() * .22; z = -K * step + gauss() * .5; w = .95;
     }
-  });
-  mol.rotation.set(.4, 0, .15);
-
-  // orbital: hydrogen 3d_z2, |ψ|² ∝ r⁴ e^(−2r/3) (3cos²θ − 1)²   (Bohr units)
-  const N = mobile ? 14000 : 30000;
-  const pos = new Float32Array(N * 3), den = new Float32Array(N);
-  let n = 0; const R = 26, MAX = 95;
-  while (n < N) {
+    a.set([x, y, z + off, w], i * 4);
+  }
+  return a;
+}
+function shSpore(N) {
+  const a = new Float32Array(N * 4), R = 2.45, dirs = Array.from({ length: 90 }, randSphere);
+  for (let i = 0; i < N; i++) {
+    const r = Math.random(); let x, y, z, w;
+    if (r < .52) {
+      const [u, v, t] = randSphere(); const cell = Math.abs(Math.sin(u * 9) * Math.sin(v * 9) * Math.sin(t * 9));
+      const rr = R * (1 + .045 * cell) + (Math.random() - .5) * .03; x = u * rr; y = v * rr; z = t * rr; w = cell > .55 ? -.6 : 0;
+    } else if (r < .7) {
+      const d = dirs[(Math.random() * dirs.length) | 0], l = Math.random(), rr = R + l * .95, j = (1 - l) * .05;
+      x = d[0] * rr + gauss() * j; y = d[1] * rr + gauss() * j; z = d[2] * rr + gauss() * j; w = -.35;
+    } else {
+      let p; do { p = [Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1]; } while (Math.hypot(...p) > 1 || (Math.sin(p[0] * 7) + Math.sin(p[1] * 7) + Math.sin(p[2] * 7)) < .9);
+      x = p[0] * R * .9; y = p[1] * R * .9; z = p[2] * R * .9; w = .9;
+    }
+    a.set([x, y, z, w], i * 4);
+  }
+  return a;
+}
+function shGyroid(N) {
+  const a = new Float32Array(N * 4), R = 6.2, f = 1.15;
+  let i = 0;
+  while (i < N) {
+    const x = (Math.random() * 2 - 1) * R, y = (Math.random() * 2 - 1) * R, z = (Math.random() * 2 - 1) * R;
+    const d = Math.hypot(x, y, z); if (d > R) continue;
+    const g = Math.sin(x * f) * Math.cos(y * f) + Math.sin(y * f) * Math.cos(z * f) + Math.sin(z * f) * Math.cos(x * f);
+    if (Math.abs(g) > .07) continue;
+    const hot = Math.sin(x * .55 + 1) * Math.cos(y * .5 - .5) * Math.sin(z * .4) > .22;
+    a.set([x, y, z, hot ? .9 : (d > 4.6 ? -.6 : 0)], i * 4); i++;
+  }
+  return a;
+}
+const CAFFEINE = { a: [["C", 3.324, 0.059, -0.234], ["N", 2.058, -0.627, -0.193], ["C", 1.868, -1.981, -0.278], ["N", 0.59, -2.298, -0.209], ["C", -0.049, -1.103, -0.076], ["C", 0.824, -0.058, -0.063], ["C", 0.414, 1.297, 0.064], ["O", 1.21, 2.232, 0.075], ["N", -0.972, 1.436, 0.174], ["C", -1.908, 0.38, 0.164], ["O", -3.118, 0.603, 0.267], ["N", -1.406, -0.916, 0.034], ["C", -2.301, -2.058, 0.016], ["C", -1.517, 2.772, 0.31], ["H", 4.13, -0.671, -0.345], ["H", 3.323, 0.739, -1.089], ["H", 3.452, 0.61, 0.701], ["H", 2.684, -2.684, -0.387], ["H", -3.348, -1.757, 0.112], ["H", -2.05, -2.722, 0.849], ["H", -2.178, -2.593, -0.931], ["H", -2.207, 2.962, -0.519], ["H", -2.079, 2.834, 1.247], ["H", -0.743, 3.544, 0.31]], b: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [6, 8], [8, 9], [9, 10], [9, 11], [11, 12], [8, 13], [5, 1], [11, 4], [0, 14], [0, 15], [0, 16], [2, 17], [12, 18], [12, 19], [12, 20], [13, 21], [13, 22], [13, 23]] };
+function shMolecule(N) {
+  const a = new Float32Array(N * 4), S = 1.05;
+  const RAD = { C: .44, N: .42, O: .42, H: .27 }, W = { C: 0, N: -.45, O: 1, H: -.78 };
+  const atoms = CAFFEINE.a.map(([e, x, y, z]) => ({ e, p: [x * S, y * S, z * S], r: RAD[e] }));
+  const areaSum = atoms.reduce((s, t) => s + t.r * t.r, 0);
+  const bonds = CAFFEINE.b.map(([i, j]) => [atoms[i], atoms[j]]);
+  for (let i = 0; i < N; i++) {
+    let x, y, z, w;
+    if (Math.random() < .7) {
+      let r = Math.random() * areaSum, t = atoms[0]; for (const at of atoms) { r -= at.r * at.r; if (r <= 0) { t = at; break; } }
+      const d = randSphere(); x = t.p[0] + d[0] * t.r; y = t.p[1] + d[1] * t.r; z = t.p[2] + d[2] * t.r; w = W[t.e];
+    } else {
+      const [A, B] = bonds[(Math.random() * bonds.length) | 0], u = Math.random();
+      x = lerp(A.p[0], B.p[0], u) + gauss() * .035; y = lerp(A.p[1], B.p[1], u) + gauss() * .035; z = lerp(A.p[2], B.p[2], u) + gauss() * .035; w = -.5;
+    }
+    a.set([x, y, z, w], i * 4);
+  }
+  return a;
+}
+function shOrbital(N) { // hydrogen 3d_z2: |ψ|² ∝ r⁴ e^(−2r/3) (3cos²θ − 1)²
+  const a = new Float32Array(N * 4), R = 26, MAX = 95, S = .19;
+  let i = 0;
+  while (i < N) {
     const x = (Math.random() * 2 - 1) * R, y = (Math.random() * 2 - 1) * R, z = (Math.random() * 2 - 1) * R;
     const r = Math.hypot(x, y, z); if (r < 1e-3 || r > R) continue;
-    const c = y / r, ang = 3 * c * c - 1;
-    const d = Math.pow(r, 4) * Math.exp(-2 * r / 3) * ang * ang;
-    if (Math.random() * MAX < d) { pos.set([x * .17, y * .17, z * .17], n * 3); den[n] = clamp(d / 60); n++; }
+    const c = y / r, ang = 3 * c * c - 1, d = r ** 4 * Math.exp(-2 * r / 3) * ang * ang;
+    if (Math.random() * MAX >= d) continue;
+    const n = clamp(d / 55);
+    a.set([x * S, y * S, z * S, n > .45 ? (n - .45) * 1.7 : -(1 - n) * .55], i * 4); i++;
   }
-  const og = new THREE.BufferGeometry();
-  og.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  og.setAttribute('aD', new THREE.BufferAttribute(den, 1));
-  const orbMat = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false,
-    uniforms: { uExpand: { value: 0 }, uCollapse: { value: 0 }, uSize: { value: mobile ? 2.2 : 2.6 }, uPR: { value: renderer.getPixelRatio() }, uOpacity: { value: 0 } },
-    vertexShader: `attribute float aD; uniform float uExpand,uCollapse,uSize,uPR; varying float vD;
-      void main(){ vec3 p=position*max(uExpand,.001)*(1.0-uCollapse*.992);
-        vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;
-        gl_PointSize=uSize*uPR*(.55+aD*.9)*(10./-mv.z)*(1.0+uCollapse*.6); vD=aD; }`,
-    fragmentShader: `uniform float uOpacity,uCollapse; varying float vD;
-      void main(){ vec2 c=gl_PointCoord-.5; float d=length(c); if(d>.5) discard;
-        float a=smoothstep(.5,.05,d)*uOpacity*(.28+.72*vD);
-        vec3 lo=vec3(.42), hi=vec3(.09);
-        vec3 col=mix(lo,hi,smoothstep(.15,.9,vD));
-        col=mix(col,vec3(1.,.42,.21),smoothstep(.55,1.,vD)*.85);
-        col=mix(col,vec3(1.,.55,.3),uCollapse);
-        gl_FragColor=vec4(col,a); }`,
-  });
-  const orb = new THREE.Points(og, orbMat); holder.add(orb);
-  orb.rotation.set(.35, 0, .2);
+  return a;
+}
 
-  Object.assign(gl, { renderer, scene, cam, holder, mol, orb, orbMat, canvas });
+/* ============ WebGL ============ */
+const gl = {};
+function initGL() {
+  const canvas = $('#gl');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 1.6));
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, .1, 200);
+  cam.position.set(0, 0, 16);
+  const N = mobile ? 22000 : 44000;
+  const geo = new THREE.BufferGeometry();
+  const base = new Float32Array(N * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(base, 3));
+  [shBarrel, shSpore, shGyroid, shMolecule, shOrbital].forEach((fn, i) => geo.setAttribute('aS' + i, new THREE.BufferAttribute(fn(N), 4)));
+  const rnd = new Float32Array(N); for (let i = 0; i < N; i++) rnd[i] = Math.random();
+  geo.setAttribute('aR', new THREE.BufferAttribute(rnd, 1));
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 100);
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, depthTest: false,
+    uniforms: { uS: { value: 0 }, uT: { value: 0 }, uSize: { value: mobile ? 2.4 : 2.1 }, uPR: { value: renderer.getPixelRatio() }, uDark: { value: 0 }, uOpacity: { value: 0 } },
+    vertexShader: /* glsl */`
+      attribute vec4 aS0,aS1,aS2,aS3,aS4; attribute float aR;
+      uniform float uS,uT,uSize,uPR;
+      varying float vW; varying float vA;
+      vec4 shp(float i){ if(i<.5) return aS0; if(i<1.5) return aS1; if(i<2.5) return aS2; if(i<3.5) return aS3; return aS4; }
+      void main(){
+        float s=clamp(uS,0.,4.);
+        float i0=min(floor(s),3.); float t=s-i0;
+        float tt=smoothstep(aR*.42, aR*.42+.58, t);
+        vec4 p=mix(shp(i0), shp(i0+1.), tt);
+        float arc=sin(3.14159*tt);
+        vec3 dir=normalize(vec3(sin(aR*91.7),cos(aR*53.3),sin(aR*17.9+1.)));
+        p.xyz+=dir*arc*(1.2+aR*2.8);
+        p.xyz+=.04*vec3(sin(uT*.8+aR*50.+p.y*1.7),cos(uT*.7+aR*31.+p.z*1.3),sin(uT*.6+aR*17.+p.x*1.5));
+        float c=clamp(uS-4.,0.,1.);
+        p.xyz*=1.-c*.988;
+        vec4 mv=modelViewMatrix*vec4(p.xyz,1.);
+        gl_Position=projectionMatrix*mv;
+        float z=-mv.z;
+        gl_PointSize=min(uSize*uPR*(.5+aR*.9)*(15./max(z,.3))*(1.+c*2.), 42.);
+        vW=mix(p.w,1.,c);
+        vA=smoothstep(.35,2.6,z)*(1.-smoothstep(40.,70.,z));
+      }`,
+    fragmentShader: /* glsl */`
+      uniform float uDark,uOpacity; varying float vW,vA;
+      void main(){
+        vec2 q=gl_PointCoord-.5; float d=length(q); if(d>.5) discard;
+        float a=smoothstep(.5,.12,d);
+        vec3 ink=mix(vec3(.09),vec3(.95),uDark);
+        vec3 grey=mix(vec3(.66),vec3(.42),uDark);
+        vec3 org=mix(vec3(1.,.42,.21),vec3(1.,.5,.26),uDark);
+        vec3 col= vW>=0. ? mix(ink,org,vW) : mix(ink,grey,-vW);
+        gl_FragColor=vec4(col, a*uOpacity*vA*mix(.78,.92,uDark));
+      }`,
+  });
+  const pts = new THREE.Points(geo, mat);
+  const holder = new THREE.Group(); holder.add(pts); scene.add(holder);
+  Object.assign(gl, { renderer, scene, cam, mat, holder, pts, canvas });
   resizeGL();
 }
 function resizeGL() {
-  gl.renderer.setSize(vw, vh, false);
-  gl.cam.aspect = vw / vh; gl.cam.updateProjectionMatrix();
-}
-function renderGL(u, t) {
   if (!gl.renderer) return;
-  const vis = sm(9.95, 10.4, u) * (1 - sm(15.0, 15.3, u));
-  gl.canvas.style.opacity = vis.toFixed(3);
-  if (vis <= 0) return;
-  const mIn = easeO(range(...T.molIn, u)), morph = sm(...T.morph, u), col = sm(...T.collapse, u);
-  const ms = mIn * (1 - morph) * (mobile ? .62 : .8);
-  gl.mol.visible = ms > .002;
-  gl.mol.scale.setScalar(Math.max(ms, .001));
-  gl.mol.rotation.y = u * 1.1 + t * .12;
-  gl.mol.rotation.x = .4 + Math.sin(u * .9) * .25;
-  gl.orb.visible = morph > 0;
-  gl.orbMat.uniforms.uExpand.value = easeO(morph);
-  gl.orbMat.uniforms.uCollapse.value = col;
-  gl.orbMat.uniforms.uOpacity.value = morph * (1 - sm(14.85, 15.1, u));
-  gl.orb.rotation.y = u * .7 + t * .08;
-  // object sits right of text on desktop, drifts to centre for the collapse into light
-  const baseX = portrait ? 0 : 3.1, baseY = portrait ? .9 : 0;
-  gl.holder.position.x = lerp(baseX, 0, sm(13.9, 14.7, u));
-  gl.holder.position.y = lerp(baseY, 0, sm(13.9, 14.7, u));
-  gl.renderer.render(gl.scene, gl.cam);
+  gl.renderer.setSize(innerWidth, innerHeight, false);
+  gl.cam.aspect = innerWidth / innerHeight; gl.cam.updateProjectionMatrix();
 }
 
-/* ---------------- callouts ---------------- */
-const svgNS = 'http://www.w3.org/2000/svg';
-const co = callouts.map(el => {
-  const [ax, ay] = el.dataset.a.split(',').map(Number);
-  const line = document.createElementNS(svgNS, 'line');
-  const d = document.createElementNS(svgNS, 'circle'); d.setAttribute('class', 'd'); d.setAttribute('r', 4);
-  const r = document.createElementNS(svgNS, 'circle'); r.setAttribute('class', 'r'); r.setAttribute('r', 11);
-  svg.append(line, r, d);
-  return { el, ax, ay, side: el.dataset.l, ly: +el.dataset.y, tin: +el.dataset.in, line, d, r };
-});
-function placeCallouts(u, frame) {
-  co.forEach((c, i) => {
-    const o = sm(c.tin, c.tin + .45, u);
-    if (!frame || o <= 0) { c.el.style.visibility = 'hidden'; c.line.style.opacity = c.d.style.opacity = c.r.style.opacity = 0; return; }
-    const px = frame.x + c.ax * frame.w * frame.s, py = frame.y + c.ay * frame.h * frame.s;
-    let lx, ly, ex;
-    if (mobile) {
-      lx = 16; ly = vh * .64 + i * 62;
-      c.el.style.width = (vw - 32) + 'px';
-      ex = null;
-    } else {
-      const wl = 220;
-      ly = vh * c.ly;
-      const prodLeft = frame.x + .29 * frame.w * frame.s;
-      lx = Math.max(vw * .045, prodLeft - wl - 70);
-      ex = lx + wl;
-      c.el.style.width = wl + 'px';
-    }
-    c.el.style.visibility = 'visible';
-    c.el.style.opacity = o;
-    c.el.style.transform = `translate3d(${lx}px,${ly + (1 - o) * 16}px,0)`;
-    c.d.setAttribute('cx', px); c.d.setAttribute('cy', py);
-    c.r.setAttribute('cx', px); c.r.setAttribute('cy', py);
-    c.d.style.opacity = o; c.r.style.opacity = o * .9;
-    c.r.setAttribute('r', 6 + 6 * o);
-    if (ex !== null) {
-      const tx = lerp(px, ex, o), ty = lerp(py, ly, o);
-      c.line.setAttribute('x1', px); c.line.setAttribute('y1', py);
-      c.line.setAttribute('x2', tx); c.line.setAttribute('y2', ty);
-      c.line.style.opacity = 1;
-    } else c.line.style.opacity = 0;
-  });
+/* ============ scroll → story value ============ */
+let keys = [];
+function measureKeys() {
+  keys = $$('.k').map(el => [el.getBoundingClientRect().top + scrollY, +el.dataset.k]).sort((a, b) => a[0] - b[0]);
 }
-
-/* ---------------- overlays ---------------- */
-const ovData = overlays.map(el => ({ el, a: +el.dataset.in, b: el.dataset.out ? +el.dataset.out : 99, hero: el.classList.contains('ov--hero') }));
-function placeOverlays(u) {
-  ovData.forEach(o => {
-    const fi = o.a < 0 ? 1 : sm(o.a, o.a + .4, u);
-    const fo = 1 - sm(o.b - .4, o.b, u);
-    const v = fi * fo;
-    o.el.style.visibility = v > .002 ? 'visible' : 'hidden';
-    o.el.style.opacity = v.toFixed(3);
-    if (o.hero) {
-      const p = sm(.05, o.b, u);
-      o.el.style.transform = `translate3d(0,${-p * 8}vh,0)`;
-      o.el.style.filter = p > .01 ? `blur(${(p * 6).toFixed(1)}px)` : '';
-    } else {
-      const dy = (1 - fi) * 28 - (1 - fo) * 28;
-      const base = o.el.classList.contains('ov--beyond') || o.el.classList.contains('ov--smaller') ? (mobile ? '' : ' translateY(-50%)') : '';
-      o.el.style.transform = `translate3d(0,${dy.toFixed(1)}px,0)${base}`;
-    }
-  });
-}
-
-/* ---------------- main render ---------------- */
-let uTarget = 0, u = 0, lastSceneIdx = -1, inJourney = true, afterScene = null;
-function render(t) {
-  // --- product track (forward + return share the same frames)
-  const fwd = u < 12;
-  let CA, Sx, Sy, vis;
-  const heroSx = portrait ? .5 : .67, heroSy = portrait ? .7 : .6;
-  if (fwd) {
-    CA = lerp(T.cA[0], T.cA[1], easeIO(range(...T.camA, u)));
-    const s = easeIO(range(0.15, 1.9, u));
-    Sx = lerp(heroSx, .5, s) * vw; Sy = lerp(heroSy, .5, s) * vh;
-    vis = u < T.portal[1] + .05;
-  } else {
-    CA = lerp(T.cR[0], T.cR[1], easeIO(range(...T.camR, u)));
-    const s = easeIO(range(...T.retS, u));
-    const endSx = portrait ? .5 : .63, endSy = portrait ? .5 : .6;
-    Sx = lerp(.5, endSx, s) * vw; Sy = lerp(.5, endSy, s) * vh;
-    vis = u > T.retMask[0];
+function storyAt(y) {
+  if (y <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (y <= keys[i][0]) {
+    const [y0, k0] = keys[i - 1], [y1, k1] = keys[i];
+    return lerp(k0, k1, (y - y0) / (y1 - y0));
   }
-  let dark = 0, lastA = null;
-  if (vis) {
-    const r = placeTrack(A, elA, CA, Sx, Sy, .22);
-    dark = r.dark; lastA = r.st[0];
-    grpA.classList.toggle('top', !fwd);
-    if (fwd) { showGrp(grpA, true); grpA.style.webkitMaskImage = grpA.style.maskImage = 'none'; }
-    else maskGroup(grpA, easeIO(range(...T.retMask, u)) * (Math.hypot(vw, vh) / 2 + 80), 120);
-  } else showGrp(grpA, false);
-
-  // --- micro track
-  const bVis = u > T.portal[0] && u < T.whiteIn[1] + .05;
-  if (bVis) {
-    const CB = lerp(T.cB[0], T.cB[1], range(...T.camB, u));
-    const r = placeTrack(B, elB, CB, vw / 2, vh / 2, .2);
-    const pr = range(...T.portal, u);
-    const R = Math.pow(pr, 1.6) * (Math.hypot(vw, vh) / 2 + 90);
-    maskGroup(grpB, R, 90);
-    ring.style.opacity = (Math.sin(pr * Math.PI) * .9).toFixed(3);
-    ring.style.width = ring.style.height = (R * 2 - 90) + 'px';
-    if (pr > .5) dark = 1;
-  } else { showGrp(grpB, false); ring.style.opacity = 0; }
-
-  // --- white / dark background states
-  const wv = sm(...T.whiteIn, u) * (1 - sm(...T.whiteOut, u));
-  white.style.opacity = wv.toFixed(3);
-  white.style.visibility = wv > 0 ? 'visible' : 'hidden';
-  stageBg.style.background = (u > 9.5 && u < 17) ? '#0a0a0a' : '#fff';
-  if (u > 10.3 && u < 14.75) dark = 0;
-  if (u >= 14.75 && u < 15.4) dark = 1;
-
-  // --- glow bridge (light returns gradually, never as a flash)
-  const gi = sm(...T.glowIn, u), go = 1 - sm(...T.glowOut, u);
-  glow.style.opacity = (gi * go).toFixed(3);
-  glow.style.transform = `scale(${(.05 + gi * .95 + (1 - go) * .4).toFixed(3)})`;
-
-  renderGL(u, t);
-  placeOverlays(u);
-  placeCallouts(u, !fwd && vis ? lastA : null);
-
-  // --- HUD
-  const isDark = inJourney && dark > .5;
-  hud.classList.toggle('is-dark', isDark);
-  hdr.classList.toggle('is-dark', isDark);
-  if (inJourney) {
-    let idx = 0; SCENES.forEach((s, i) => { if (u >= s[0]) idx = i; });
-    if (idx !== lastSceneIdx) { lastSceneIdx = idx; hudNum.textContent = SCENES[idx][1]; hudName.textContent = SCENES[idx][2]; }
-    const d = piece(DEPTH, u);
-    railMarker.style.top = (d * 100) + '%';
-    const li = Math.round(d * 4);
-    railLabels.forEach((l, i) => l.classList.toggle('on', i === li));
-    railScale.textContent = SCALE_LABELS[li];
-    let type = 'PRODUCT RENDER · NEXUM M1';
-    if (u > 3.9 && u < 10.3) type = 'ARTISTIC MICROSTRUCTURE VISUALIZATION · NOT AN M1 CAPTURE';
-    else if (u >= 10.3 && u < 12.9) type = 'MOLECULAR MODEL · CAFFEINE C₈H₁₀N₄O₂';
-    else if (u >= 12.9 && u < 14.9) type = 'ATOMIC MODEL · HYDROGEN 3dz² |ψ|²';
-    if (hudType.textContent !== type) hudType.textContent = type;
-  }
+  return keys[keys.length - 1][1];
 }
 
-/* ---------------- scroll ---------------- */
-let lenis = null;
-function journeyTop() { return journey.getBoundingClientRect().top + scrollY; }
-function readScroll() {
-  const y = (lenis ? lenis.scroll : scrollY) - journeyTop();
-  uTarget = clamp(y / scrollLen) * T.total;
-  const rect = journey.getBoundingClientRect();
-  inJourney = rect.bottom > vh * .5;
-  rail.classList.toggle('off', !inJourney);
-  hudType.style.opacity = inJourney ? '' : 0;
-}
-function goTo(uVal) {
-  const y = journeyTop() + (uVal / T.total) * scrollLen;
-  if (lenis) lenis.scrollTo(y, { duration: 2.2 }); else scrollTo({ top: y, behavior: 'smooth' });
-}
-
-/* ---------------- after-journey scenes ---------------- */
-function setupSections() {
-  gsap.registerPlugin(ScrollTrigger);
-  $$('section[data-scene]').forEach(sec => {
-    ScrollTrigger.create({
-      trigger: sec, start: 'top 55%', end: 'bottom 55%',
-      onToggle: s => { if (s.isActive) { hudNum.textContent = sec.dataset.scene; hudName.textContent = sec.dataset.name; lastSceneIdx = -1; } },
-      onLeaveBack: () => { lastSceneIdx = -1; },
+/* ============ text splitting ============ */
+function split(el) {
+  const walk = node => {
+    [...node.childNodes].forEach(n => {
+      if (n.nodeType === 3) {
+        const frag = document.createDocumentFragment();
+        n.textContent.split(/(\s+)/).forEach(part => {
+          if (!part) return;
+          if (/^\s+$/.test(part)) { frag.append(' '); return; }
+          const w = document.createElement('span'); w.className = 'split-w';
+          const inner = document.createElement('span'); inner.textContent = part; w.append(inner); frag.append(w);
+        });
+        n.replaceWith(frag);
+      } else if (n.nodeType === 1 && n.tagName !== 'BR') {
+        if (n.tagName === 'EM') { const w = document.createElement('span'); w.className = 'split-w'; n.replaceWith(w); const inner = document.createElement('span'); inner.append(n); w.append(inner); }
+        else walk(n);
+      }
     });
-  });
-  if (reduced) return;
-  $$('.specs .row').forEach((r, i) => r.classList.add('rv'));
-  gsap.to('.specs .row', { opacity: 1, y: 0, duration: .8, ease: 'expo.out', stagger: .08, scrollTrigger: { trigger: '.specs__table', start: 'top 75%' } });
-  ['.specs__head > *', '.cta__text > *:not(.form)', '.cta__img'].forEach(sel => {
-    gsap.from(sel, { opacity: 0, y: 40, duration: 1.1, ease: 'expo.out', stagger: .08, scrollTrigger: { trigger: sel, start: 'top 85%' } });
-  });
+  };
+  walk(el);
+  return el.querySelectorAll('.split-w>span');
 }
 
-/* ---------------- boot ---------------- */
-function preload(urls, onProgress) {
-  let done = 0;
-  return Promise.all(urls.map(u => new Promise(res => {
-    const im = new Image(); im.onload = im.onerror = () => { done++; onProgress(done / urls.length); res(); }; im.src = u;
-  })));
+/* ============ DOM refs ============ */
+const hud = { num: $('#hudNum'), name: $('#hudName'), type: $('#hudType'), marker: $('#railMarker'), scale: $('#railScale'), labels: $$('.rail__track span'), rail: $('#rail') };
+let lastScene = '', lastType = '', lastDark = -1;
+
+/* ============ boot ============ */
+function preload(urls, onP) {
+  let n = 0;
+  return Promise.all(urls.map(u => new Promise(r => { const i = new Image(); i.onload = i.onerror = () => { onP(++n / urls.length); r(); }; i.src = u; })));
 }
 
 async function boot() {
-  layout();
+  gsap.registerPlugin(ScrollTrigger);
   const loadNum = $('#loadNum'), loadBar = $('#loadBar');
-  let shown = 0, target = 0;
-  const tickLoader = () => { shown += (target - shown) * .15; loadNum.textContent = String(Math.round(shown * 100)).padStart(2, '0'); loadBar.style.transform = `scaleX(${shown})`; if (shown < .995) requestAnimationFrame(tickLoader); else { loadNum.textContent = '100'; } };
-  requestAnimationFrame(tickLoader);
-  const first = A.map(f => IMG + f.id + '.webp');
-  const rest = B.map(f => IMG + f.id + '.webp');
-  await preload(first, p => target = p * .6);
-  const restP = preload(rest, p => target = .6 + p * .4);
-  if (!reduced) await Promise.race([restP, new Promise(r => setTimeout(r, 6000))]);
-  target = 1;
-  await new Promise(r => setTimeout(r, 450));
-  $('#loader').classList.add('done');
+  const counter = { v: 0 };
+  const show = () => { loadNum.textContent = String(Math.round(counter.v)).padStart(3, '0'); loadBar.style.transform = `scaleX(${counter.v / 100})`; };
+  const imgs = ['p02-cut', 'p05-lens', 'p01-hero', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `assets/img/${n}.webp`);
+  await preload(imgs, p => gsap.to(counter, { v: p * 90, duration: .5, ease: 'power2.out', onUpdate: show, overwrite: true }));
+  if (!reduced) { try { initGL(); } catch (e) { console.warn('WebGL off', e); } }
+  await gsap.to(counter, { v: 100, duration: .45, ease: 'power2.inOut', onUpdate: show });
+  await document.fonts.ready;
 
-  if (reduced) { setupSections(); bindUI(); return; }
+  // split headings
+  const splits = $$('[data-split]').map(el => ({ el, parts: split(el) }));
 
-  try { initGL(); } catch (e) { console.warn('WebGL unavailable', e); }
+  // loader exit + hero intro
+  const tl = gsap.timeline();
+  tl.to('#loader', { yPercent: -100, duration: 1.1, ease: 'expo.inOut' })
+    .set('#loader', { display: 'none' });
+  if (!reduced) {
+    tl.from('.hero__title .split-w>span', { yPercent: 105, duration: 1.4, ease: 'expo.out', stagger: .06 }, '-=.45')
+      .fromTo('.hero__title', { fontStretch: '62%' }, { fontStretch: '125%', duration: 1.8, ease: 'expo.out' }, '<')
+      .from('.hero__product', { yPercent: 18, opacity: 0, scale: .92, duration: 1.6, ease: 'expo.out' }, '<.15')
+      .from(['.hero__meta', '.hero__bottom', '.marquee', '.hdr', '.hud'], { opacity: 0, y: 16, duration: 1, ease: 'expo.out', stagger: .05 }, '<.3');
+  }
+  if (reduced) { bindUI(); return; }
 
-  lenis = new Lenis({ lerp: .09, wheelMultiplier: .9, touchMultiplier: 1.4 });
+  // smooth scroll
+  const lenis = new Lenis({ lerp: .085, wheelMultiplier: .95, touchMultiplier: 1.3 });
+  window.__lenis = lenis;
   lenis.on('scroll', ScrollTrigger.update);
-  gsap.ticker.add(time => { lenis.raf(time * 1000); });
+  gsap.ticker.add(t => lenis.raf(t * 1000));
   gsap.ticker.lagSmoothing(0);
 
-  setupSections();
-  bindUI();
+  // heading reveals
+  splits.forEach(({ el, parts }) => {
+    if (el.closest('.hero')) return;
+    gsap.from(parts, { yPercent: 108, duration: 1.2, ease: 'expo.out', stagger: .05, scrollTrigger: { trigger: el, start: 'top 82%', toggleActions: 'play none none reverse' } });
+  });
+  $$('.lead, .note, .kicker').forEach(el => {
+    if (el.closest('.hero')) return;
+    gsap.from(el, { opacity: 0, y: 24, duration: 1, ease: 'expo.out', scrollTrigger: { trigger: el, start: 'top 88%', toggleActions: 'play none none reverse' } });
+  });
 
-  // hero intro
-  gsap.from('.hero__title .line > span', { yPercent: 110, duration: 1.3, ease: 'expo.out', stagger: .09, delay: .1 });
-  gsap.from(['.hero__meta', '.hero__sub', '.hero__cta', '.hero__foot'], { opacity: 0, y: 18, duration: 1, ease: 'expo.out', stagger: .07, delay: .35 });
-  gsap.from(intro, { opacity: 0, x: 60, scale: 1.03, transformOrigin: '70% 60%', duration: 1.8, ease: 'expo.out', delay: .05 });
-  gsap.from(['.hdr', '.hud'], { opacity: 0, duration: 1, delay: .6 });
+  // hero parallax on exit
+  gsap.to('.hero__product', { yPercent: -16, scale: 1.06, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
+  gsap.to('.hero__line.l1', { xPercent: -14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
+  gsap.to('.hero__line.l2', { xPercent: 14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
 
-  readScroll(); u = uTarget;
-  gsap.ticker.add(time => {
-    readScroll();
-    u += (uTarget - u) * .35;
-    if (Math.abs(uTarget - u) < 1e-4) u = uTarget;
-    render(time);
+  // marquee (speeds up with scroll velocity)
+  const mq = gsap.to('#marquee', { xPercent: -50, duration: 22, ease: 'none', repeat: -1 });
+  lenis.on('scroll', e => { gsap.to(mq, { timeScale: 1 + Math.min(Math.abs(e.velocity) * .25, 6), duration: .2, overwrite: true }); gsap.to(mq, { timeScale: 1, duration: 1.2, delay: .2 }); });
+
+  // lens: words split apart while we dive
+  const lensPin = $('#lens .pinblock');
+  const ltl = gsap.timeline({ scrollTrigger: { trigger: lensPin, start: 'top top', end: 'bottom bottom', scrub: true } });
+  ltl.fromTo('#lwL', { xPercent: 0 }, { xPercent: -95, ease: 'power2.in', duration: 1 }, .25)
+    .fromTo('#lwR', { xPercent: 0 }, { xPercent: 95, ease: 'power2.in', duration: 1 }, .25)
+    .fromTo('#lensCard', { y: 0 }, { y: () => -(innerHeight * 1.0 + 420), ease: 'none', duration: .9 }, 0)
+    .to('#lensSub', { opacity: 0, duration: .2 }, .45);
+
+  // gallery horizontal scroll
+  const track = $('#galTrack'), galNum = $('#galNum');
+  gsap.to(track, {
+    x: () => -(track.scrollWidth - innerWidth), ease: 'none',
+    scrollTrigger: { trigger: '#gallery', start: 'top top', end: 'bottom bottom', scrub: true, invalidateOnRefresh: true,
+      onUpdate: st => { galNum.textContent = String(Math.min(5, 1 + Math.floor(st.progress * 5.2))).padStart(2, '0'); } },
+  });
+  $$('.gcard img').forEach(img => gsap.fromTo(img, { scale: 1.18 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: '#gallery', start: 'top top', end: 'bottom bottom', scrub: true } }));
+
+  // clip word + bleed
+  gsap.fromTo('#clipWord', { scale: 1.35, yPercent: 10 }, { scale: 1, yPercent: 0, ease: 'none', scrollTrigger: { trigger: '.clip', start: 'top bottom', end: 'center center', scrub: true } });
+  gsap.fromTo('#bleed1 img', { scale: 1.3, yPercent: -6 }, { scale: 1, yPercent: 6, ease: 'none', scrollTrigger: { trigger: '#bleed1', start: 'top bottom', end: 'bottom top', scrub: true } });
+
+  // engineered: callouts draw in
+  const etl = gsap.timeline({ scrollTrigger: { trigger: '#engPin', start: 'top top', end: 'bottom bottom', scrub: true } });
+  etl.from('#engFig', { yPercent: 12, scale: .9, opacity: 0, duration: .5, ease: 'power2.out' }, 0);
+  $$('.eng__lines path').forEach((p, i) => {
+    const at = .55 + i * .45;
+    etl.fromTo($$('.hot')[i], { scale: 0 }, { scale: 1, duration: .15 }, at)
+      .fromTo(p, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: .3, ease: 'power1.inOut' }, at + .05)
+      .fromTo($$('.co')[i], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: .25 }, at + .25);
+  });
+  etl.to({}, { duration: .4 });
+  $$('.dcard').forEach((c, i) => gsap.from(c, { y: 90, opacity: 0, duration: 1.2, ease: 'expo.out', delay: i * .08, scrollTrigger: { trigger: '.details', start: 'top 85%' } }));
+
+  // specs rows
+  gsap.from('.row', { y: 50, opacity: 0, duration: 1, ease: 'expo.out', stagger: .08, scrollTrigger: { trigger: '.specs__table', start: 'top 80%' } });
+  gsap.fromTo('.specs__img img', { scale: 1.35 }, { scale: 1.05, ease: 'none', scrollTrigger: { trigger: '.specs', start: 'top bottom', end: 'bottom top', scrub: true } });
+
+  // cta
+  gsap.fromTo('.cta__img', { yPercent: 18 }, { yPercent: -8, ease: 'none', scrollTrigger: { trigger: '.cta', start: 'top bottom', end: 'bottom top', scrub: true } });
+  gsap.from('.foot__word', { yPercent: 60, ease: 'expo.out', duration: 1.6, scrollTrigger: { trigger: '.foot', start: 'top 85%' } });
+
+  bindUI(lenis);
+  measureKeys();
+  ScrollTrigger.addEventListener('refresh', measureKeys);
+
+  // story loop
+  let s = storyAt(scrollY), mx = 0, my = 0, tmx = 0, tmy = 0;
+  addEventListener('pointermove', e => { tmx = e.clientX / innerWidth - .5; tmy = e.clientY / innerHeight - .5; }, { passive: true });
+  gsap.ticker.add((time, dt) => {
+    const target = storyAt(lenis.scroll);
+    const k = 1 - Math.exp(-(dt / 1000) * 7);
+    s += (target - s) * k; if (Math.abs(target - s) < 1e-4) s = target;
+    mx += (tmx - mx) * k; my += (tmy - my) * k;
+    frame(s, time, mx, my);
   });
 }
 
-function bindUI() {
-  $$('[data-go]').forEach(a => a.addEventListener('click', e => {
-    if (reduced) return;
-    e.preventDefault(); goTo(+a.dataset.go);
-  }));
-  $$('a[href="#specs"], a[href="#demo"]').forEach(a => a.addEventListener('click', e => {
-    if (!lenis) return; e.preventDefault(); lenis.scrollTo(a.getAttribute('href'), { duration: 1.6 });
+function frame(s, time, mx, my) {
+  // background + foreground colours
+  const dark = curve(C.dark, s);
+  const dq = Math.round(dark * 100) / 100;
+  if (dq !== lastDark) {
+    lastDark = dq;
+    const bg = Math.round(lerp(255, 10, dq)), fg = Math.round(lerp(23, 245, dq));
+    root.style.setProperty('--bg', `rgb(${bg},${bg},${bg})`);
+    root.style.setProperty('--fg', `rgb(${fg},${fg},${fg})`);
+    const onDark = dq > .5 && s > 1 && s < 10.9;
+    $('#hdr').style.color = onDark ? '#f5f5f5' : '';
+  }
+  // HUD
+  let sc = SCENES[0]; for (const x of SCENES) if (s >= x[0]) sc = x;
+  if (sc[1] !== lastScene) { lastScene = sc[1]; hud.num.textContent = sc[1]; hud.name.textContent = sc[2]; }
+  let ty = TYPES[0]; for (const x of TYPES) if (s >= x[0]) ty = x;
+  if (s > 11.6) ty = [0, ''];
+  if (ty[1] !== lastType) { lastType = ty[1]; hud.type.textContent = ty[1]; }
+  const d = curve(C.depth, s);
+  hud.marker.style.top = (d * 100) + '%';
+  const li = Math.round(d * 4);
+  hud.labels.forEach((l, i) => l.classList.toggle('on', i === li));
+  if (hud.scale.textContent !== SCALES[li]) hud.scale.textContent = SCALES[li];
+  hud.rail.classList.toggle('off', s < .7 || s > 11.3);
+  const hudEl = $('#hud'); const hudDark = (s > 11.7 && s < 12.9) || (s > 13.85);
+  hudEl.style.color = hudDark ? '#f5f5f5' : '';
+  hudEl.style.opacity = s < .55 ? 0 : 1;
+
+  // particles
+  if (!gl.renderer) return;
+  const op = curve(C.opacity, s);
+  gl.canvas.style.opacity = op > 0 ? 1 : 0;
+  if (op <= 0.001) return;
+  const u = gl.mat.uniforms;
+  u.uS.value = curve(C.shape, s);
+  u.uT.value = time;
+  u.uDark.value = dark;
+  u.uOpacity.value = op;
+  const sx = mobile ? 0 : curve(C.gx, s);
+  gl.holder.position.set(sx, mobile ? curve(C.gx, s) * .55 : 0, curve(C.gz, s));
+  const spin = curve(C.spin, s);
+  gl.holder.rotation.y = curve(C.rotY, s) + spin * (s * .55 + time * .07) + mx * .25;
+  gl.holder.rotation.x = spin * .25 * Math.sin(s * .6) + my * .18;
+  gl.renderer.render(gl.scene, gl.cam);
+}
+
+/* ============ UI ============ */
+function bindUI(lenis) {
+  $$('[data-to]').forEach(a => a.addEventListener('click', e => {
+    const t = $(a.dataset.to); if (!t) return;
+    e.preventDefault();
+    if (lenis) lenis.scrollTo(t, { duration: 2.4, easing: x => 1 - Math.pow(1 - x, 4) }); else t.scrollIntoView();
   }));
   const form = $('#form');
-  $('#openForm').addEventListener('click', () => { form.classList.add('open'); setTimeout(() => form.querySelector('input').focus({ preventScroll: true }), 300); });
+  $('#openForm').addEventListener('click', () => { form.classList.add('open'); setTimeout(() => form.querySelector('input').focus({ preventScroll: true }), 350); });
   form.addEventListener('submit', e => {
     e.preventDefault();
     const ok = form.name.value.trim() && /\S+@\S+\.\S+/.test(form.email.value);
-    $('#formMsg').textContent = ok ? 'Thank you — this is a concept form, no data was sent.' : 'Please add your name and a valid email.';
+    $('#formMsg').textContent = ok ? 'Thank you — concept form, nothing was sent.' : 'Please add your name and a valid email.';
+  });
+
+  if (!finePointer || reduced) return;
+  root.classList.add('has-cursor');
+  const cur = $('#cursor'), txt = $('#cursorTxt');
+  const xTo = gsap.quickTo(cur, 'x', { duration: .45, ease: 'power3' }), yTo = gsap.quickTo(cur, 'y', { duration: .45, ease: 'power3' });
+  addEventListener('pointermove', e => { xTo(e.clientX); yTo(e.clientY); }, { passive: true });
+  document.addEventListener('pointerover', e => {
+    const c = e.target.closest('[data-cursor]'), l = e.target.closest('a,button,input');
+    cur.classList.toggle('big', !!c); cur.classList.toggle('link', !c && !!l);
+    txt.textContent = c ? c.dataset.cursor : '';
+  });
+  // magnetic buttons
+  $$('.magnetic').forEach(b => {
+    const bx = gsap.quickTo(b, 'x', { duration: .6, ease: 'elastic.out(1,.4)' }), by = gsap.quickTo(b, 'y', { duration: .6, ease: 'elastic.out(1,.4)' });
+    b.addEventListener('pointermove', e => { const r = b.getBoundingClientRect(); bx((e.clientX - r.left - r.width / 2) * .3); by((e.clientY - r.top - r.height / 2) * .35); });
+    b.addEventListener('pointerleave', () => { bx(0); by(0); });
   });
 }
 
-let rT;
-let lastW = innerWidth, lastH = innerHeight;
+let lastW = innerWidth;
 addEventListener('resize', () => {
-  // ignore mobile URL-bar height jitter
-  if (innerWidth === lastW && Math.abs(innerHeight - lastH) < 160) return;
-  lastW = innerWidth; lastH = innerHeight;
-  clearTimeout(rT); rT = setTimeout(() => { layout(); if (window.ScrollTrigger) ScrollTrigger.refresh(); }, 120);
+  if (innerWidth === lastW && mobile) return;
+  lastW = innerWidth; mobile = innerWidth < 760;
+  resizeGL(); ScrollTrigger.refresh();
 });
 boot();

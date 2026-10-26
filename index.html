@@ -7,205 +7,261 @@
 <meta name="description" content="NEXUM M1 Digital Microscope — a scroll-driven journey from the device into the microscopic world and back. Concept website.">
 <meta name="theme-color" content="#ffffff">
 <meta property="og:title" content="NEXUM M1 — See Beyond">
-<meta property="og:description" content="A new perspective on the world hidden from the naked eye. Concept website.">
+<meta property="og:description" content="A new perspective on the world hidden from the naked eye.">
 <meta property="og:image" content="assets/img/p02-product.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="preload" as="image" href="assets/img/p02-product.webp">
+<link rel="preload" as="image" href="assets/img/p02-cut.webp">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23171717' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23FF6B35'/%3E%3C/svg%3E">
 </head>
 <body>
 
+<canvas class="gl" id="gl" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
 <!-- LOADER -->
 <div class="loader" id="loader" aria-hidden="true">
-  <div class="loader__top mono"><span>NEXUM / M1</span><span>CALIBRATING OPTICS</span></div>
-  <div class="loader__num"><span id="loadNum">00</span><i>%</i></div>
+  <div class="loader__row mono"><span>NEXUM / M1</span><span>CALIBRATING OPTICS</span></div>
+  <div class="loader__num"><span id="loadNum">000</span></div>
   <div class="loader__bar"><i id="loadBar"></i></div>
 </div>
 
+<!-- CURSOR -->
+<div class="cursor" id="cursor" aria-hidden="true"><i></i><span id="cursorTxt"></span></div>
+
 <!-- HEADER -->
 <header class="hdr" id="hdr">
-  <a href="#top" class="logo" data-go="0" aria-label="NEXUM home"><span class="logo__mark"></span>NEXUM</a>
+  <a href="#top" class="logo" data-to="#top" aria-label="NEXUM home"><span class="logo__mark"></span>NEXUM</a>
   <nav class="nav mono" aria-label="Primary">
-    <a href="#journey" data-go="3.6">Journey</a>
-    <a href="#journey" data-go="18.2">Product</a>
-    <a href="#specs">Specs</a>
+    <a href="#lens" data-to="#lens"><i>01</i>Journey</a>
+    <a href="#product" data-to="#product"><i>02</i>Product</a>
+    <a href="#specs" data-to="#specs"><i>03</i>Specs</a>
   </nav>
-  <a href="#demo" class="btn btn--sm">Request demo</a>
+  <a href="#demo" class="pill magnetic" data-to="#demo"><span>Request demo</span></a>
 </header>
 
 <!-- HUD -->
 <div class="hud" id="hud" aria-hidden="true">
-  <div class="hud__scene mono"><span class="hud__num" id="hudNum">01</span><span class="hud__sep">/08</span><span class="hud__name" id="hudName">SEE BEYOND</span></div>
+  <div class="hud__scene mono"><b id="hudNum">01</b><span>/08</span><em id="hudName">SEE BEYOND</em></div>
   <div class="hud__type mono" id="hudType">PRODUCT RENDER · NEXUM M1</div>
   <div class="rail" id="rail">
-    <div class="rail__scale mono"><span>SCALE</span><b id="railScale">≈ 10⁻¹ m</b></div>
-    <div class="rail__track">
-      <i class="rail__marker" id="railMarker"></i>
-      <span style="--p:0">DEVICE</span>
-      <span style="--p:.25">OPTICS</span>
-      <span style="--p:.5">MICRO</span>
-      <span style="--p:.75">MOLECULAR</span>
-      <span style="--p:1">ATOMIC</span>
+    <div class="rail__track"><i class="rail__marker" id="railMarker"></i>
+      <span style="--p:0">DEVICE</span><span style="--p:.25">OPTICS</span><span style="--p:.5">MICRO</span><span style="--p:.75">MOLECULAR</span><span style="--p:1">ATOMIC</span>
     </div>
+    <b class="mono" id="railScale">≈ 10⁻¹ m</b>
   </div>
 </div>
 
 <main id="top">
 
-  <!-- ============ JOURNEY (pinned scroll story, scenes 01–06) ============ -->
-  <section class="journey" id="journey" aria-label="Scroll journey">
-    <div class="stage" id="stage">
-      <div class="stage__bg" id="stageBg"></div>
-
-      <div class="grp grpA" id="grpA"><div class="intro" id="intro"></div></div>
-      <div class="grp grpB" id="grpB"></div>
-      <div class="ring" id="ring"></div>
-      <div class="whiteout" id="white"></div>
-      <canvas class="gl" id="gl"></canvas>
-      <div class="glow" id="glow"></div>
-
-      <svg class="callouts" id="calloutSvg" aria-hidden="true"></svg>
-
-      <!-- 01 HERO -->
-      <div class="ov ov--hero" data-in="-1" data-out="0.85">
-        <div class="hero__meta mono">NEXUM / M1 DIGITAL MICROSCOPE</div>
-        <h1 class="hero__title display">
-          <span class="line"><span>SEE</span></span>
-          <span class="line"><span>BEYOND<em>.</em></span></span>
-        </h1>
+  <!-- 01 HERO -->
+  <section class="hero" id="hero">
+    <i class="k" data-k="0"></i>
+    <div class="hero__grid">
+      <div class="hero__meta mono"><span>NEXUM / M1</span><span>DIGITAL MICROSCOPE</span></div>
+      <div class="hero__meta hero__meta--r mono"><span>SERIES 01</span><span>CONCEPT — 2026</span></div>
+      <h1 class="hero__title display" aria-label="See beyond.">
+        <span class="hero__line l1" data-split>SEE</span>
+        <span class="hero__line l2" data-split>BEYOND<em>.</em></span>
+      </h1>
+      <figure class="hero__product"><img src="assets/img/p02-cut.webp" alt="NEXUM M1 digital microscope, studio render" width="1037" height="866"></figure>
+      <div class="hero__bottom">
         <p class="hero__sub">A new perspective on the world hidden from the naked eye.</p>
-        <a href="#journey" class="hero__cta mono" data-go="3.8"><span class="dot"></span>EXPLORE THE INVISIBLE <b>↓</b></a>
-        <div class="hero__foot mono"><span>DIGITAL IMAGING</span><span>PRECISION OPTICS</span><span>M1 SERIES</span></div>
+        <a href="#lens" class="hero__cta mono" data-to="#lens" data-cursor="DIVE"><span class="dot"></span>Explore the invisible<b>↓</b></a>
       </div>
+    </div>
+    <div class="marquee" aria-hidden="true"><div class="marquee__track" id="marquee">
+      <span>DIGITAL IMAGING</span><i>✦</i><span>PRECISION OPTICS</span><i>✦</i><span>M1 SERIES</span><i>✦</i><span>SEE BEYOND</span><i>✦</i>
+      <span>DIGITAL IMAGING</span><i>✦</i><span>PRECISION OPTICS</span><i>✦</i><span>M1 SERIES</span><i>✦</i><span>SEE BEYOND</span><i>✦</i>
+    </div></div>
+  </section>
 
-      <!-- 02 INTO THE LENS -->
-      <div class="ov ov--lens" data-in="0.75" data-out="2.05">
-        <div class="kicker mono"><i></i>02 — INTO THE LENS</div>
-        <h2 class="display h-lg">LOOK<br>CLOSER.</h2>
-        <p class="lead">There’s more to see.</p>
+  <!-- 02 INTO THE LENS -->
+  <section class="lens fg" id="lens">
+    <i class="k" data-k="1"></i>
+    <div class="pinblock" style="--h:300vh">
+      <div class="sticky lens__stage">
+        <div class="lens__kicker kicker mono"><i></i>02 — INTO THE LENS</div>
+        <h2 class="lens__words display" aria-label="Look closer.">
+          <span class="lw lw--l" id="lwL">LOOK</span>
+          <span class="lw lw--r" id="lwR">CLOSER<em>.</em></span>
+        </h2>
+        <p class="lens__sub" id="lensSub">There’s more to see.</p>
+        <figure class="lens__card" id="lensCard"><img src="assets/img/p05-lens.webp" alt="M1 objective close-up render" loading="lazy"><figcaption class="mono">FIG. 02 — M1 OBJECTIVE · RENDER</figcaption></figure>
       </div>
-
-      <!-- 03 A WORLD WITHIN -->
-      <div class="ov ov--world on-dark" data-in="4.45" data-out="6.05">
-        <div class="kicker mono"><i></i>03 — A WORLD WITHIN</div>
-        <h2 class="display h-xl">A WORLD<br>WITHIN.</h2>
-        <p class="lead">What looks simple on the surface reveals a universe of detail up close.</p>
-      </div>
-
-      <!-- 04 LAYERS OF DETAIL -->
-      <div class="ov ov--layers on-dark" data-in="6.75" data-out="8.35">
-        <div class="kicker mono"><i></i>04 — LAYERS OF DETAIL</div>
-        <h2 class="display h-lg">A SURFACE<br>IS NEVER JUST<br>A SURFACE.</h2>
-        <p class="lead">Discover the structures, patterns and details hidden in plain sight.</p>
-      </div>
-
-      <div class="ov ov--story on-dark" data-in="8.8" data-out="9.95">
-        <p class="display h-md">EVERY STRUCTURE<br>TELLS A STORY.</p>
-      </div>
-
-      <!-- 05 BEYOND THE VISIBLE -->
-      <div class="ov ov--beyond" data-in="10.8" data-out="12.35">
-        <div class="kicker mono"><i></i>05 — BEYOND THE VISIBLE</div>
-        <h2 class="display h-xl">BEYOND<br>THE VISIBLE.</h2>
-        <p class="lead">At the molecular scale, matter reveals a different kind of complexity.</p>
-        <p class="note mono">MODEL — CAFFEINE, C₈H₁₀N₄O₂<br>NOT AN M1 OPTICAL CAPTURE</p>
-      </div>
-
-      <div class="ov ov--smaller" data-in="13.15" data-out="14.45">
-        <div class="kicker mono"><i></i>QUANTUM SCALE</div>
-        <h2 class="display h-lg">SMALLER<br>THAN YOU CAN<br>IMAGINE.</h2>
-        <p class="lead">At the smallest scales, our everyday intuition gives way to the laws of the quantum world.</p>
-        <p class="note mono">VISUALIZATION — HYDROGEN 3d<sub>z²</sub> ORBITAL<br>PROBABILITY DENSITY |ψ|²</p>
-      </div>
-
-      <!-- 06 ENGINEERED TO REVEAL -->
-      <div class="ov ov--meet" data-in="17.35">
-        <div class="kicker mono"><i></i>06 — MAKING THE INVISIBLE VISIBLE.</div>
-        <h2 class="display h-lg">MEET<br>NEXUM M1.</h2>
-        <p class="lead">Digital microscopy, designed to bring microscopic details into focus.</p>
-      </div>
-
-      <div class="callout" data-in="18.1" data-a="0.415,0.30" data-l="left" data-y="0.52">
-        <span class="callout__n mono">01</span><b class="mono">DIGITAL INTERFACE</b><span>Intuitive control</span>
-      </div>
-      <div class="callout" data-in="18.7" data-a="0.47,0.585" data-l="left" data-y="0.64">
-        <span class="callout__n mono">02</span><b class="mono">OPTICAL SYSTEM</b><span>Precision optics</span>
-      </div>
-      <div class="callout" data-in="19.3" data-a="0.47,0.70" data-l="left" data-y="0.76">
-        <span class="callout__n mono">03</span><b class="mono">ILLUMINATION</b><span>Controlled light</span>
-      </div>
+      <i class="k k--end" data-k="2"></i>
     </div>
   </section>
 
-  <!-- Reduced-motion / no-pin version of the journey -->
-  <section class="journey-static" aria-label="Journey (static)">
-    <div class="js-hero wrap">
-      <div class="hero__meta mono">NEXUM / M1 DIGITAL MICROSCOPE</div>
-      <h1 class="display h-xl">SEE BEYOND<em>.</em></h1>
-      <p class="lead">A new perspective on the world hidden from the naked eye.</p>
-      <img src="assets/img/p02-product.webp" alt="NEXUM M1 digital microscope, studio render" loading="eager">
+  <!-- 03 A WORLD WITHIN -->
+  <section class="world fg" id="world">
+    <div class="pinblock" style="--h:190vh">
+      <div class="sticky world__stage">
+        <div class="wrap world__text">
+          <div class="kicker mono"><i></i>03 — A WORLD WITHIN</div>
+          <h2 class="display h-xxl" data-split>A WORLD<br>WITHIN.</h2>
+          <p class="lead">What looks simple on the surface reveals a universe of detail up close.</p>
+          <p class="note mono">PARTICLE MODEL — SPORE-LIKE MICROSTRUCTURE</p>
+        </div>
+      </div>
+      <i class="k k--end" data-k="3"></i>
     </div>
-    <figure class="js-fig"><img src="assets/img/p05-lens.webp" alt="Close-up of the M1 objective with amber illumination" loading="lazy"><figcaption class="mono">02 — LOOK CLOSER. There’s more to see.</figcaption></figure>
-    <figure class="js-fig"><img src="assets/img/m01.webp" alt="Artistic visualization of spiked spores" loading="lazy"><figcaption class="mono">03 — A WORLD WITHIN · Artistic microstructure visualization</figcaption></figure>
-    <figure class="js-fig"><img src="assets/img/m05.webp" alt="Artistic visualization of a porous inner structure" loading="lazy"><figcaption class="mono">04 — A SURFACE IS NEVER JUST A SURFACE.</figcaption></figure>
-    <figure class="js-fig"><img src="assets/img/m08.webp" alt="Monochrome visualization of a molecular-like network" loading="lazy"><figcaption class="mono">05 — BEYOND THE VISIBLE · Scientific visualization, not an M1 capture</figcaption></figure>
-    <div class="js-meet wrap">
-      <h2 class="display h-lg">MEET NEXUM M1.</h2>
-      <img src="assets/img/p01-hero.webp" alt="NEXUM M1 microscope" loading="lazy">
-      <ol class="mono"><li>01 DIGITAL INTERFACE — Intuitive control</li><li>02 OPTICAL SYSTEM — Precision optics</li><li>03 ILLUMINATION — Controlled light</li></ol>
+    <div class="pinblock gallery" style="--h:320vh" id="gallery">
+      <div class="sticky gallery__stage">
+        <div class="gallery__track" id="galTrack">
+          <div class="gcard gcard--intro">
+            <span class="mono">SPECIMEN SERIES</span>
+            <p class="display h-lg">EVERY<br>STRUCTURE<br>TELLS<br>A STORY.</p>
+            <span class="mono note">Artistic microstructure visualizations — not captured by M1.</span>
+          </div>
+          <figure class="gcard" data-cursor="DRAG"><img src="assets/img/m01.webp" alt="Visualization of spiked spores" loading="lazy"><figcaption><b class="mono">S—01</b><span>Spore field</span></figcaption></figure>
+          <figure class="gcard gcard--tall"><img src="assets/img/m02.webp" alt="Visualization of a spore surface" loading="lazy"><figcaption><b class="mono">S—02</b><span>Membrane</span></figcaption></figure>
+          <figure class="gcard"><img src="assets/img/m04.webp" alt="Visualization of a cellular shell" loading="lazy"><figcaption><b class="mono">S—03</b><span>Cell shell</span></figcaption></figure>
+          <figure class="gcard gcard--tall"><img src="assets/img/m06.webp" alt="Visualization of tissue turning into molecular network" loading="lazy"><figcaption><b class="mono">S—04</b><span>Tissue → network</span></figcaption></figure>
+          <figure class="gcard"><img src="assets/img/m09.webp" alt="Monochrome visualization of a molecular network" loading="lazy"><figcaption><b class="mono">S—05</b><span>Mono network</span></figcaption></figure>
+        </div>
+        <div class="gallery__count mono"><span id="galNum">01</span> / 05</div>
+      </div>
+      <i class="k k--end" data-k="4"></i>
     </div>
   </section>
 
-  <!-- ============ 07 PRECISION, DEFINED ============ -->
-  <section class="specs" id="specs" data-scene="07" data-name="PRECISION, DEFINED">
+  <!-- 04 LAYERS OF DETAIL -->
+  <section class="layers fg" id="layers">
+    <div class="clip">
+      <div class="kicker mono wrap"><i></i>04 — LAYERS OF DETAIL</div>
+      <h2 class="clip__word display" id="clipWord" style="--img:url(../img/m05.webp)">SURFACE</h2>
+      <p class="clip__line display">IS NEVER JUST A SURFACE<em>.</em></p>
+    </div>
+    <figure class="bleed" id="bleed1"><img src="assets/img/m07.webp" alt="Visualization of a porous molecular network" loading="lazy">
+      <figcaption class="bleed__cap wrap"><span class="mono">FIG. 04 — ARTISTIC VISUALIZATION</span><p class="display h-lg">DISCOVER<br>WHAT HIDES<br>IN PLAIN SIGHT.</p></figcaption>
+    </figure>
+    <i class="k" data-k="5"></i>
+    <div class="pinblock" style="--h:200vh">
+      <div class="sticky gyro__stage">
+        <div class="wrap gyro__text">
+          <div class="kicker mono"><i></i>STRUCTURE</div>
+          <h2 class="display h-xl" data-split>PATTERNS<br>INSIDE<br>PATTERNS.</h2>
+          <p class="lead">Discover the structures, patterns and details hidden in plain sight.</p>
+          <p class="note mono">MODEL — GYROID, A TRIPLY PERIODIC MINIMAL SURFACE.<br>FOUND IN NATURE, E.G. IN BUTTERFLY WING SCALES.</p>
+        </div>
+      </div>
+      <i class="k k--end" data-k="6"></i>
+    </div>
+  </section>
+
+  <!-- 05 BEYOND THE VISIBLE -->
+  <section class="beyond fg" id="beyond">
+    <i class="k" data-k="7"></i>
+    <div class="pinblock" style="--h:220vh">
+      <div class="sticky beyond__stage">
+        <div class="wrap side-text">
+          <div class="kicker mono"><i></i>05 — BEYOND THE VISIBLE</div>
+          <h2 class="display h-xxl" data-split>BEYOND<br>THE<br>VISIBLE<em>.</em></h2>
+          <p class="lead">At the molecular scale, matter reveals a different kind of complexity.</p>
+          <p class="note mono">MODEL — CAFFEINE, C₈H₁₀N₄O₂ · BALL-AND-STICK<br>NOT AN M1 OPTICAL CAPTURE</p>
+        </div>
+      </div>
+      <i class="k k--end" data-k="8"></i>
+    </div>
+    <i class="k" data-k="9"></i>
+    <div class="pinblock" style="--h:220vh">
+      <div class="sticky beyond__stage">
+        <div class="wrap side-text">
+          <div class="kicker mono"><i></i>QUANTUM SCALE</div>
+          <h2 class="display h-xl" data-split>SMALLER<br>THAN YOU<br>CAN<br>IMAGINE<em>.</em></h2>
+          <p class="lead">At the smallest scales, our everyday intuition gives way to the laws of the quantum world.</p>
+          <p class="note mono">VISUALIZATION — HYDROGEN 3d<sub>z²</sub> ORBITAL, |ψ|² PROBABILITY DENSITY</p>
+        </div>
+      </div>
+      <i class="k k--end" data-k="10"></i>
+    </div>
+  </section>
+
+  <!-- 06 ENGINEERED TO REVEAL -->
+  <section class="eng" id="product">
+    <i class="k" data-k="11"></i>
+    <div class="pinblock" style="--h:280vh" id="engPin">
+      <div class="sticky eng__stage">
+        <div class="eng__head wrap">
+          <div class="kicker mono"><i></i>06 — MAKING THE INVISIBLE VISIBLE.</div>
+          <h2 class="display h-xxl eng__title"><span data-split>MEET</span><span class="eng__m1">NEXUM <em>M1</em></span></h2>
+        </div>
+        <figure class="eng__fig" id="engFig">
+          <img src="assets/img/p02-cut.webp" alt="NEXUM M1 digital microscope" loading="lazy">
+          <svg class="eng__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M34.7 26 L-8 26 L-22 30"/><path d="M43.5 57 L-8 57 L-22 52"/><path d="M43.5 70 L-8 70 L-22 74"/>
+          </svg>
+          <i class="hot" style="left:34.7%;top:26%"></i><i class="hot" style="left:43.5%;top:57%"></i><i class="hot" style="left:43.5%;top:70%"></i>
+          <div class="co" style="--y:30%"><b class="mono">01</b><strong>Digital interface</strong><span>Intuitive control</span></div>
+          <div class="co" style="--y:52%"><b class="mono">02</b><strong>Optical system</strong><span>Precision optics</span></div>
+          <div class="co" style="--y:74%"><b class="mono">03</b><strong>Illumination</strong><span>Controlled light</span></div>
+        </figure>
+        <p class="eng__lead lead wrap">Digital microscopy, designed to bring microscopic details into focus.</p>
+      </div>
+    </div>
+    <div class="details wrap">
+      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><img src="assets/img/p03-angle.webp" alt="M1 display detail" loading="lazy" style="object-position:30% 20%"></div><figcaption><b class="mono">01</b><strong>Digital interface</strong><span>Integrated display with direct magnification control.</span></figcaption></figure>
+      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><img src="assets/img/p05-lens.webp" alt="M1 objective detail" loading="lazy" style="object-position:50% 55%"></div><figcaption><b class="mono">02</b><strong>Optical system</strong><span>A precision objective, framed in machined aluminium.</span></figcaption></figure>
+      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><img src="assets/img/p04-front.webp" alt="M1 illumination detail" loading="lazy" style="object-position:50% 90%"></div><figcaption><b class="mono">03</b><strong>Illumination</strong><span>Controlled, adjustable light under the stage.</span></figcaption></figure>
+    </div>
+  </section>
+
+  <!-- 07 SPECS -->
+  <section class="specs" id="specs">
+    <i class="k" data-k="12"></i>
     <div class="wrap specs__grid">
-      <div class="specs__head">
+      <div class="specs__side">
         <div class="kicker mono"><i></i>07 — PRECISION, DEFINED</div>
-        <h2 class="display h-lg">THE DETAILS<br>BEHIND<br>THE VIEW.</h2>
+        <h2 class="display h-lg" data-split>THE DETAILS<br>BEHIND<br>THE VIEW<em>.</em></h2>
         <p class="lead">Considered engineering. A focused interface. A product designed around the demands of digital observation.</p>
-        <div class="specs__img"><img src="assets/img/p01-hero.webp" alt="NEXUM M1 digital microscope, three-quarter view" loading="lazy"></div>
+        <figure class="specs__img"><img src="assets/img/p06-core.webp" alt="Glowing optical core render" loading="lazy"></figure>
       </div>
       <div class="specs__table" role="table" aria-label="Specifications">
-        <div class="row" role="row"><span class="mono idx">01</span><span role="cell" class="k">Imaging system</span><span role="cell" class="v">Digital imaging</span></div>
-        <div class="row" role="row"><span class="mono idx">02</span><span role="cell" class="k">Optical system</span><span role="cell" class="v">Precision optics</span></div>
-        <div class="row" role="row"><span class="mono idx">03</span><span role="cell" class="k">Illumination</span><span role="cell" class="v">Adjustable LED</span></div>
-        <div class="row" role="row"><span class="mono idx">04</span><span role="cell" class="k">Display</span><span role="cell" class="v">Integrated digital display</span></div>
-        <div class="row" role="row"><span class="mono idx">05</span><span role="cell" class="k">Connectivity</span><span role="cell" class="v">USB-C</span></div>
-        <p class="specs__note mono">Concept specification — values are placeholders for a portfolio case.</p>
+        <div class="row" role="row"><span class="row__i">01</span><span role="cell" class="row__k">Imaging system</span><span role="cell" class="row__v">Digital imaging</span></div>
+        <div class="row" role="row"><span class="row__i">02</span><span role="cell" class="row__k">Optical system</span><span role="cell" class="row__v">Precision optics</span></div>
+        <div class="row" role="row"><span class="row__i">03</span><span role="cell" class="row__k">Illumination</span><span role="cell" class="row__v">Adjustable LED</span></div>
+        <div class="row" role="row"><span class="row__i">04</span><span role="cell" class="row__k">Display</span><span role="cell" class="row__v">Integrated digital display</span></div>
+        <div class="row" role="row"><span class="row__i">05</span><span role="cell" class="row__k">Connectivity</span><span role="cell" class="row__v">USB-C</span></div>
+        <p class="specs__note mono">Concept specification — placeholder values for a portfolio case.</p>
       </div>
     </div>
   </section>
 
-  <!-- ============ 08 LOOK CLOSER / CTA ============ -->
-  <section class="cta" id="demo" data-scene="08" data-name="LOOK CLOSER">
-    <div class="wrap cta__grid">
-      <div class="cta__text">
-        <div class="kicker mono"><i></i>08 — LOOK CLOSER</div>
-        <h2 class="display h-xl">THERE’S<br>MORE<br>TO SEE<em>.</em></h2>
+  <!-- 08 CTA -->
+  <section class="cta" id="demo">
+    <i class="k" data-k="13"></i>
+    <div class="kicker mono wrap"><i></i>08 — LOOK CLOSER</div>
+    <h2 class="cta__title display"><span data-split>THERE’S MORE</span><span data-split>TO SEE<em>.</em></span></h2>
+    <div class="cta__grid wrap">
+      <div class="cta__left">
         <p class="lead">Look closer with NEXUM M1.</p>
         <div class="cta__btns">
-          <button class="btn" id="openForm" type="button">Request a demonstration <b>→</b></button>
-          <a href="#specs" class="link mono">View specifications</a>
+          <button class="btn magnetic" id="openForm" type="button"><span>Request a demonstration</span><b>→</b></button>
+          <a href="#specs" class="link mono" data-to="#specs">View specifications</a>
         </div>
         <form class="form" id="form" novalidate>
           <label><span class="mono">Name</span><input name="name" autocomplete="name" required></label>
           <label><span class="mono">Email</span><input name="email" type="email" autocomplete="email" required></label>
           <label class="full"><span class="mono">Institution / Lab</span><input name="org" autocomplete="organization"></label>
-          <button class="btn" type="submit">Send request <b>→</b></button>
+          <button class="btn" type="submit"><span>Send request</span><b>→</b></button>
           <p class="form__msg mono" id="formMsg" role="status"></p>
         </form>
       </div>
-      <div class="cta__img"><img src="assets/img/p02-product.webp" alt="NEXUM M1 digital microscope" loading="lazy"></div>
+      <figure class="cta__img"><img src="assets/img/p02-cut.webp" alt="NEXUM M1 microscope" loading="lazy"></figure>
     </div>
-    <footer class="foot wrap mono">
-      <span>NEXUM / PRECISION THROUGH PERSPECTIVE.</span>
-      <span>Concept product · Images are renders &amp; artistic visualizations</span>
-      <span>Design &amp; development — <a href="https://bilandesign.site" target="_blank" rel="noopener">Valentyn Bilan</a></span>
-    </footer>
   </section>
+
+  <footer class="foot">
+    <div class="foot__row wrap mono">
+      <span>NEXUM / PRECISION THROUGH PERSPECTIVE.</span>
+      <span>Concept product · Renders &amp; scientific visualizations</span>
+      <span>Design &amp; dev — <a href="https://bilandesign.site" target="_blank" rel="noopener">Valentyn Bilan</a></span>
+    </div>
+    <div class="foot__word display" aria-hidden="true">NEXUM<em>.</em></div>
+  </footer>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
