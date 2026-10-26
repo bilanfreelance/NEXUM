@@ -236,7 +236,7 @@ html.has-cursor .cursor{display:block}
 .foot__row{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;padding-top:34px;padding-bottom:20px;opacity:.7}
 .foot__row a{border-bottom:1px solid currentColor}
 .foot__row a:hover{color:var(--acc)}
-.foot__word{font-size:29vw;line-height:.74;letter-spacing:-.07em;text-align:center;white-space:nowrap;margin-bottom:-.05em;padding-top:2vw}
+.foot__word{font-size:19.5vw;line-height:.74;letter-spacing:-.07em;text-align:center;white-space:nowrap;margin-bottom:-.05em;padding-top:2vw}
 
 /* ---------- reduced motion ---------- */
 html.reduced .pinblock{height:auto}

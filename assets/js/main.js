@@ -236,7 +236,7 @@ function split(el) {
 
 /* ============ DOM refs ============ */
 const hud = { num: $('#hudNum'), name: $('#hudName'), type: $('#hudType'), marker: $('#railMarker'), scale: $('#railScale'), labels: $$('.rail__track span'), rail: $('#rail') };
-let lastScene = '', lastType = '', lastDark = -1;
+let lastScene = '', lastType = '', lastDark = -1, footIn = false;
 
 /* ============ boot ============ */
 function preload(urls, onP) {
@@ -337,6 +337,7 @@ async function boot() {
   gsap.fromTo('.cta__img', { yPercent: 18 }, { yPercent: -8, ease: 'none', scrollTrigger: { trigger: '.cta', start: 'top bottom', end: 'bottom top', scrub: true } });
   gsap.from('.foot__word', { yPercent: 60, ease: 'expo.out', duration: 1.6, scrollTrigger: { trigger: '.foot', start: 'top 85%' } });
 
+  ScrollTrigger.create({ trigger: '.foot', start: 'top 92%', onToggle: st => { footIn = st.isActive; } });
   bindUI(lenis);
   measureKeys();
   ScrollTrigger.addEventListener('refresh', measureKeys);
@@ -379,7 +380,7 @@ function frame(s, time, mx, my) {
   hud.rail.classList.toggle('off', s < .7 || s > 11.3);
   const hudEl = $('#hud'); const hudDark = (s > 11.7 && s < 12.9) || (s > 13.85);
   hudEl.style.color = hudDark ? '#f5f5f5' : '';
-  hudEl.style.opacity = s < .55 ? 0 : 1;
+  hudEl.style.opacity = (s < .55 || footIn) ? 0 : 1;
 
   // particles
   if (!gl.renderer) return;
