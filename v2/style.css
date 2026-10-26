@@ -384,3 +384,10 @@ html.gl-on .glm img{opacity:0}
   .foot__row{gap:10px;padding-top:28px}
   .foot__word{font-size:21vw;padding-top:6vw}
 }
+
+/* overflow guard + mobile assets */
+html,body{overflow-x:clip}
+picture{display:contents}
+.clip{overflow:hidden}
+.shock{overflow:hidden}
+@media (max-width:760px){.clip__word{--img:url(../assets/img/sm/m05.webp) !important}}

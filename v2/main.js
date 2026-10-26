@@ -332,7 +332,7 @@ function initPlanes() {
     mat.uniforms.uPos.value.set(pos[0], 1 - pos[1]);
     const mesh = new THREE.Mesh(geo, mat); mesh.visible = false; gl.iscene.add(mesh);
     const p = { el, mesh, mat, hover: 0, hoverT: 0, reveal: 0, revealT: 0, mx: .5, my: .5, ready: false };
-    loader.load(el.dataset.gl, tex => {
+    loader.load(mobile ? el.dataset.gl.replace('/img/', '/img/sm/') : el.dataset.gl, tex => {
       tex.colorSpace = THREE.NoColorSpace; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
       mat.uniforms.uTex.value = tex; mat.uniforms.uImg.value.set(tex.image.width, tex.image.height); p.ready = true;
     });
@@ -429,7 +429,7 @@ async function boot() {
   gsap.registerPlugin(ScrollTrigger);
   gsap.config({ force3D: true });
   root.classList.add('is-loading');
-  const imgs = ['p01-cut', 'p02-cut', 'p05-lens', 'p03-angle', 'p04-front', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `../assets/img/${n}.webp`);
+  const imgs = ['p01-cut', 'p02-cut', 'p05-lens', 'p03-angle', 'p04-front', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `../assets/img/${mobile ? 'sm/' : ''}${n}.webp`);
   const splits = $$('[data-split]').map(el => ({ el, parts: split(el) }));
   gsap.set('.hero__title .split-w>span', { yPercent: 105 });
   gsap.set('#heroImg', { opacity: 0 });
@@ -484,7 +484,8 @@ async function boot() {
     .set(L, { shape: 1 }, 1.3)
     .to(L, { shape: 0, duration: 1.5, ease: 'power2.inOut' }, 1.3)
     .to(L, { z: 0, px: hx, py: hy, yk: 1, duration: 1.6, ease: 'power3.out' }, 1.3)
-    .add(() => { root.classList.remove('is-loading'); $('#lui').style.display = 'none'; }, 1.55);
+    .add(() => { root.classList.remove('is-loading'); $('#lui').style.display = 'none'; }, 1.55)
+    .add(() => { $('.shock').style.display = 'none'; }, 2.8);
   if (!reduced) {
     tl.to('.hero__title .split-w>span', { yPercent: 0, duration: 1.3, ease: 'power4.out', stagger: .08, force3D: true }, 1.6)
       .fromTo('#heroImg', { yPercent: 18, opacity: 0, scale: .88 }, { yPercent: 0, opacity: 1, scale: 1, duration: 1.8, ease: 'power3.out', force3D: true }, 1.7)

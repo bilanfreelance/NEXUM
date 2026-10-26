@@ -28,7 +28,8 @@ let mobile = innerWidth < 760;
 
 /* ============ story curves (in "key" units, see .k markers) ============ */
 const C = {
-  opacity: [[0.8, 0], [1.08, 1], [3.05, 1], [3.25, .3], [3.85, .3], [4.05, 0], [4.7, 0], [5.0, 1], [11.0, 1], [11.35, 0]],
+  opacity: [[0, 1], [1.08, 1], [3.05, 1], [3.25, .3], [3.85, .3], [4.05, 0], [4.7, 0], [5.0, 1], [11.0, 1], [11.35, 0]],
+  heroA: [[0.3, 1], [0.95, 0]],
   shape: [[2.0, 0], [2.5, 1], [4.6, 1], [4.95, 2], [6.6, 2], [7.05, 3], [8.55, 3], [9.05, 4], [10.55, 4], [11.15, 5]],
   dark: [[1.3, 0], [1.5, 1], [6.62, 1], [6.82, 0]],
   gz: [[1.12, 0], [2.02, 34], [2.5, 0]],
@@ -48,6 +49,29 @@ const SCALES = ['≈ 10⁻¹ m', '≈ 10⁻² m', '≈ 10⁻⁵ m', '≈ 10⁻�
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.2832 * v); };
 const randSphere = () => { const z = Math.random() * 2 - 1, t = Math.random() * 6.2832, r = Math.sqrt(1 - z * z); return [r * Math.cos(t), r * Math.sin(t), z]; };
 
+const rot = (p, ax, az) => { // rotate around X then Z
+  let [x, y, z] = p; const c = Math.cos(ax), s = Math.sin(ax);
+  [y, z] = [y * c - z * s, y * s + z * c];
+  const c2 = Math.cos(az), s2 = Math.sin(az);
+  return [x * c2 - y * s2, x * s2 + y * c2, z];
+};
+function shHalo(N) { // optical halo: tilted rings + an orange equator + fine dust
+  const a = new Float32Array(N * 4);
+  const R = [[4.25, 1.25, .25, .06, 0], [3.7, -.95, .85, .05, -.45], [5.1, .45, -1.1, .03, -.6], [4.55, 1.47, .08, .1, 1], [2.9, .2, .4, .03, -.3]];
+  const wsum = [.22, .18, .14, .26, .08];
+  for (let i = 0; i < N; i++) {
+    const r = Math.random(); let x, y, z, w;
+    let acc = 0, k = -1; for (let j = 0; j < 5; j++) { acc += wsum[j]; if (r < acc) { k = j; break; } }
+    if (k >= 0) {
+      const [rad, ax, az, th, ww] = R[k], t = Math.random() * 6.2832, rr = rad + gauss() * th;
+      [x, y, z] = rot([Math.cos(t) * rr, Math.sin(t) * rr * (k === 3 ? 1 : 1), gauss() * th * .6], ax, az); w = ww;
+    } else {
+      const d = randSphere(), rr = 2.6 + Math.random() * 5.2; x = d[0] * rr; y = d[1] * rr; z = d[2] * rr; w = Math.random() < .12 ? .8 : -.55;
+    }
+    a.set([x, y, z, w], i * 4);
+  }
+  return a;
+}
 function shBarrel(N) { // objective barrel: rings + lens discs + glowing core at the end
   const a = new Float32Array(N * 4), K = 18, step = 1.5, off = 4;
   const rad = k => 2.3 + .7 * Math.sin(k * .75) + (k % 5 === 0 ? .35 : 0);
@@ -144,16 +168,16 @@ function initGL() {
   const geo = new THREE.BufferGeometry();
   const base = new Float32Array(N * 3);
   geo.setAttribute('position', new THREE.BufferAttribute(base, 3));
-  [shBarrel, shSpore, shGyroid, shMolecule, shOrbital].forEach((fn, i) => geo.setAttribute('aS' + i, new THREE.BufferAttribute(fn(N), 4)));
+  [shBarrel, shSpore, shGyroid, shMolecule, shOrbital, shHalo].forEach((fn, i) => geo.setAttribute('aS' + i, new THREE.BufferAttribute(fn(N), 4)));
   const rnd = new Float32Array(N); for (let i = 0; i < N; i++) rnd[i] = Math.random();
   geo.setAttribute('aR', new THREE.BufferAttribute(rnd, 1));
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 100);
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, depthTest: false,
-    uniforms: { uS: { value: 0 }, uT: { value: 0 }, uSize: { value: mobile ? 2.4 : 2.1 }, uPR: { value: renderer.getPixelRatio() }, uDark: { value: 0 }, uOpacity: { value: 0 }, uScatter: { value: 0 } },
+    uniforms: { uS: { value: 0 }, uT: { value: 0 }, uSize: { value: mobile ? 2.4 : 2.1 }, uPR: { value: renderer.getPixelRatio() }, uDark: { value: 0 }, uOpacity: { value: 0 }, uScatter: { value: 0 }, uHero: { value: 0 } },
     vertexShader: /* glsl */`
-      attribute vec4 aS0,aS1,aS2,aS3,aS4; attribute float aR;
-      uniform float uS,uT,uSize,uPR,uScatter;
+      attribute vec4 aS0,aS1,aS2,aS3,aS4,aS5; attribute float aR;
+      uniform float uS,uT,uSize,uPR,uScatter,uHero;
       varying float vW; varying float vA; varying float vSc;
       vec4 shp(float i){ if(i<.5) return aS0; if(i<1.5) return aS1; if(i<2.5) return aS2; if(i<3.5) return aS3; return aS4; }
       void main(){
@@ -164,10 +188,11 @@ function initGL() {
         float arc=sin(3.14159*tt);
         vec3 dir=normalize(vec3(sin(aR*91.7),cos(aR*53.3),sin(aR*17.9+1.)));
         p.xyz+=dir*arc*(1.2+aR*2.8);
+        float th=smoothstep(aR*.4,aR*.4+.6,uHero); p=mix(p,aS5,th); p.xyz+=dir*sin(3.14159*th)*(1.5+aR*2.5);
         vec3 sd=normalize(vec3(sin(aR*91.3+1.7),cos(aR*47.1+.3),sin(aR*23.9+2.9)));
         p.xyz=mix(p.xyz, sd*(4.5+fract(aR*43.7)*15.), uScatter);
         p.xyz+=.04*vec3(sin(uT*.8+aR*50.+p.y*1.7),cos(uT*.7+aR*31.+p.z*1.3),sin(uT*.6+aR*17.+p.x*1.5));
-        float c=clamp(uS-4.,0.,1.);
+        float c=clamp(uS-4.,0.,1.)*(1.-uHero);
         p.xyz*=1.-c*.988;
         vec4 mv=modelViewMatrix*vec4(p.xyz,1.);
         gl_Position=projectionMatrix*mv;
@@ -250,7 +275,7 @@ function preload(urls, onP) {
 async function boot() {
   gsap.registerPlugin(ScrollTrigger);
   gsap.config({ force3D: true });
-  const imgs = ['p01-cut', 'p02-cut', 'p05-lens', 'p01-hero', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `assets/img/${n}.webp`);
+  const imgs = ['p01-cut', 'p02-cut', 'p05-lens', 'p01-hero', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `assets/img/${innerWidth < 760 ? 'sm/' : ''}${n}.webp`);
   const splits = $$('[data-split]').map(el => ({ el, parts: split(el) }));
   gsap.set('#heroImg', { opacity: 0 });
   gsap.set('.hero__title .split-w>span', { yPercent: 105 });
@@ -307,6 +332,7 @@ async function boot() {
       $('#loader').style.display = 'none'; $('#lui').style.display = 'none';
       if (gl.mat) { gl.mat.uniforms.uScatter.value = 0; gl.canvas.style.opacity = 0; }
     }, 2.1)
+    .to(intro, { k: 1, duration: 2.2, ease: 'power2.out' }, 2.1)
     .to('#iris', { opacity: 0, duration: .45, ease: 'power1.out', onComplete: () => { $('#iris').style.display = 'none'; } }, 2.12);
   if (!reduced) {
     tl.to('.hero__title .split-w>span', { yPercent: 0, duration: 1.3, ease: 'power4.out', stagger: .08, force3D: true }, 2.22)
@@ -335,6 +361,13 @@ async function boot() {
   });
 
   // hero parallax on exit
+  if (finePointer) {
+    const hx = gsap.quickTo('#heroMouse', 'x', { duration: 1.2, ease: 'power3' }), hy = gsap.quickTo('#heroMouse', 'y', { duration: 1.2, ease: 'power3' });
+    const hr = gsap.quickTo('#heroMouse', 'rotation', { duration: 1.4, ease: 'power3' }), tx = gsap.quickTo('.hero__line', 'x', { duration: 1.6, ease: 'power3' });
+    addEventListener('pointermove', e => { const nx = e.clientX / innerWidth - .5, ny = e.clientY / innerHeight - .5; hx(nx * 46); hy(ny * 30); hr(nx * 2.2); tx(nx * -18); }, { passive: true });
+  }
+  gsap.fromTo('#lwLi', { xPercent: -115, opacity: 0 }, { xPercent: 0, opacity: 1, ease: 'power3.out', scrollTrigger: { trigger: '#lens', start: 'top 95%', end: 'top 5%', scrub: 1.2 } });
+  gsap.fromTo('#lwRi', { xPercent: 115, opacity: 0 }, { xPercent: 0, opacity: 1, ease: 'power3.out', scrollTrigger: { trigger: '#lens', start: 'top 85%', end: 'top -5%', scrub: 1.2 } });
   gsap.to('#heroPar', { yPercent: -12, scale: 1.05, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
   gsap.to('.hero__line.l1', { xPercent: -14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
   gsap.to('.hero__line.l2', { xPercent: 14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
@@ -435,18 +468,29 @@ function frame(s, time, mx, my) {
   gl.canvas.style.opacity = op > 0 ? 1 : 0;
   if (op <= 0.001) return;
   const u = gl.mat.uniforms;
+  const heroA = curve(C.heroA, s);
   u.uS.value = curve(C.shape, s);
   u.uT.value = time;
   u.uDark.value = dark;
-  u.uOpacity.value = op;
-  const sx = mobile ? 0 : curve(C.gx, s);
-  gl.holder.position.set(sx, mobile ? curve(C.gx, s) * .55 : 0, curve(C.gz, s));
+  u.uHero.value = heroA;
+  u.uOpacity.value = op * lerp(1, intro.k, heroA);
+  u.uScatter.value = (1 - intro.k) * heroA;
+  let sx = mobile ? 0 : curve(C.gx, s), sy = mobile ? curve(C.gx, s) * .55 : 0;
+  if (heroA > 0) { const [ax, ay] = anchorOf(heroFig); sx = lerp(sx, ax, heroA); sy = lerp(sy, ay, heroA); }
+  gl.holder.position.set(sx, sy, curve(C.gz, s));
+  gl.holder.scale.setScalar(mobile ? lerp(1, .64, heroA) : 1);
   const spin = curve(C.spin, s);
-  gl.holder.rotation.y = curve(C.rotY, s) + spin * (s * .55 + time * .07) + mx * .25;
-  gl.holder.rotation.x = spin * .25 * Math.sin(s * .6) + my * .18;
+  gl.holder.rotation.y = lerp(curve(C.rotY, s) + spin * (s * .55 + time * .07), time * .1, heroA) + mx * .25;
+  gl.holder.rotation.x = lerp(spin * .25 * Math.sin(s * .6), 0, heroA) + my * .18;
   gl.renderer.render(gl.scene, gl.cam);
 }
 
+const intro = { k: 0 };
+const heroFig = document.querySelector('.hero__product');
+function anchorOf(el) {
+  const r = el.getBoundingClientRect(), halfH = Math.tan(THREE.MathUtils.degToRad(17.5)) * 16, halfW = halfH * innerWidth / innerHeight;
+  return [((r.left + r.width / 2) / innerWidth * 2 - 1) * halfW, -((r.top + r.height / 2) / innerHeight * 2 - 1) * halfH];
+}
 /* ============ UI ============ */
 function bindUI(lenis) {
   $$('[data-to]').forEach(a => a.addEventListener('click', e => {

@@ -104,7 +104,7 @@ html.has-cursor .cursor{display:block}
 .fg{color:var(--fg)}
 
 /* ---------- HERO ---------- */
-.hero{position:relative;min-height:100vh;min-height:100svh;background:#fff;overflow:hidden;color:var(--ink)}
+.hero{position:relative;min-height:100vh;min-height:100svh;overflow:hidden;color:var(--ink)}
 .hero__grid{position:relative;height:100vh;height:100svh;min-height:640px}
 .hero__meta{position:absolute;top:96px;left:var(--gut);display:flex;flex-direction:column;opacity:.6}
 .hero__meta--r{left:auto;right:var(--gut);text-align:right}
@@ -311,3 +311,13 @@ html.reduced .lw{transform:none!important}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
 }
+
+/* overflow guard + mobile assets */
+html,body{overflow-x:clip}
+picture{display:contents}
+.clip{overflow:hidden}
+.shock{overflow:hidden}
+@media (max-width:760px){.clip__word{--img:url(../img/sm/m05.webp) !important}}
+
+.lw__in{display:inline-block;will-change:transform}
+.hero__mouse{will-change:transform}
