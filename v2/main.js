@@ -38,6 +38,7 @@ const C = {
   gx: [[0.95, 2.4], [1.3, 0], [2.25, 0], [2.6, 2.9], [4.6, 2.9], [5.0, 0], [6.6, 0], [7.05, 3], [10.55, 3], [11.1, 0]],
   rotY: [[1.0, -.75], [1.3, 0]],
   spin: [[2.1, 0], [2.5, 1]],
+  mscale: [[0.9, .64], [1.1, .85], [2.25, .85], [2.6, .74], [4.6, .74], [4.95, .7], [6.6, .7], [7.05, .56], [8.55, .56], [9.05, .7], [11, .7]],
   depth: [[0, 0], [1.6, .25], [2.4, .5], [6.6, .5], [7.05, .75], [8.6, .75], [9.05, 1], [10.6, 1], [11.3, 0]],
 };
 const SCENES = [[-1, '01', 'SEE BEYOND'], [0.75, '02', 'INTO THE LENS'], [2.25, '03', 'A WORLD WITHIN'], [4.4, '04', 'LAYERS OF DETAIL'],
@@ -241,10 +242,10 @@ const Q_FRAG = /* glsl */`
     vec3 s=vec3(texture2D(tScene,uv+c*ca).r, base.g, texture2D(tScene,uv-c*ca).b);
     // bloom-lite: two rings of taps
     vec3 g=vec3(0.); vec2 px=1./uRes;
-    for(int i=0;i<10;i++){ float a=float(i)*.6283+.3;
+    for(int i=0;i<TAPS;i++){ float a=float(i)*6.2832/float(TAPS)+.3;
       vec2 d=vec2(cos(a),sin(a));
       g+=texture2D(tScene,uv+d*px*7.).rgb*.6; g+=texture2D(tScene,uv+d*px*18.).rgb*.4; }
-    g/=10.; g=max(g-vec3(.32),0.)*1.7;
+    g/=float(TAPS); g=max(g-vec3(.32),0.)*1.7;
     // page background with noise dissolve between dark and light
     float asp=uRes.x/uRes.y;
     float n=fbm(vec2(uv.x*asp,uv.y)*3.6+vec2(0.,uTime*.02));
@@ -266,7 +267,7 @@ const gl = {};
 function initGL() {
   const canvas = $('#gl');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
-  const dpr = Math.min(devicePixelRatio, mobile ? 1.5 : 1.75);
+  const dpr = Math.min(devicePixelRatio, mobile ? 1.3 : 1.75);
   renderer.setPixelRatio(dpr);
   renderer.setClearColor(0x000000, 0);
   renderer.autoClear = false;
@@ -275,7 +276,7 @@ function initGL() {
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, .1, 200);
   cam.position.set(0, 0, 16);
-  const N = mobile ? 20000 : 44000;
+  const N = mobile ? 26000 : 44000;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
   [shHalo, shBarrel, shSpore, shGyroid, shMolecule, shOrbital].forEach((fn, i) => geo.setAttribute('aS' + i, new THREE.BufferAttribute(fn(N), 4)));
@@ -296,7 +297,7 @@ function initGL() {
   // post
   const rt = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: false });
   const qmat = new THREE.ShaderMaterial({
-    vertexShader: Q_VERT, fragmentShader: Q_FRAG, depthTest: false, depthWrite: false,
+    vertexShader: Q_VERT, fragmentShader: Q_FRAG, depthTest: false, depthWrite: false, defines: { TAPS: mobile ? 6 : 10 },
     uniforms: { tScene: { value: rt.texture }, uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 }, uVel: { value: 0 }, uLight: { value: 0 }, uGlow: { value: mobile ? .9 : 1.25 }, uGrain: { value: .045 } },
   });
   const qscene = new THREE.Scene(); qscene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), qmat));
@@ -631,12 +632,13 @@ function frame(s, time, dt, vel) {
 
   // placement: hero/cta anchor to the product image, otherwise layout curves
   const heroA = curve(C.heroA, s);
-  let gx = mobile ? 0 : curve(C.gx, s), gy = mobile ? curve(C.gx, s) * .55 : 0;
+  let gx = mobile ? 0 : curve(C.gx, s), gy = mobile ? curve(C.gx, s) * .62 : 0;
   if (heroA > 0) { const [ax, ay] = anchorOf(heroImg); gx = lerp(gx, ax, heroA); gy = lerp(gy, ay, heroA); }
   const intoLens = curve([[10.6, 0], [11.05, 1], [11.4, 1], [11.6, 0]], s);
   if (intoLens > 0 && lensHot) { const [ax, ay] = anchorOf(lensHot); gx = lerp(gx, ax, intoLens); gy = lerp(gy, ay, intoLens); }
   if (halo > 0) { const [ax, ay] = anchorOf(ctaImg); gx = lerp(gx, ax, halo); gy = lerp(gy, ay, halo); }
   gl.holder.position.set(gx, gy, curve(C.gz, s));
+  gl.holder.scale.setScalar(mobile ? lerp(curve(C.mscale, s), .64, Math.max(heroA, halo)) : 1);
   const spin = curve(C.spin, s);
   const haloW = Math.max(heroA, halo);
   const ry = curve(C.rotY, s) + spin * (s * .55 + time * .07);
