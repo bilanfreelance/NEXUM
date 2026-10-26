@@ -180,14 +180,19 @@ const P_VERT = /* glsl */`
     p.xyz=mix(p.xyz, sd*(4.5+fract(aR*43.7)*15.), uScatter);
     p.xyz+=.04*vec3(sin(uT*.8+aR*50.+p.y*1.7),cos(uT*.7+aR*31.+p.z*1.3),sin(uT*.6+aR*17.+p.x*1.5));
     vec4 mv=modelViewMatrix*vec4(p.xyz,1.);
-    // cursor repulsion in screen space
+    // cursor magnifier: fisheye lens in screen space (magnifies, no hole)
     vec4 cl=projectionMatrix*mv; vec2 nd=cl.xy/cl.w;
-    vec2 dd=(nd-uMouse)*vec2(uAspect,1.); float L=length(dd);
-    float push=smoothstep(.32,0.,L)*uMouseOn;
-    mv.xy+=normalize(dd+1e-4)*push*(-mv.z)*.09;
-    gl_Position=projectionMatrix*mv;
+    vec2 asp=vec2(uAspect,1.);
+    vec2 dd=(nd-uMouse)*asp; float L=length(dd); float R=.3;
+    float x=clamp(L/R,0.,1.); float kk=1.35*uMouseOn;
+    float fx=x*(1.+kk)/(1.+kk*x);
+    float inL=1.-step(1.,L/R);
+    vec2 nd2=uMouse+(dd/max(L,1e-5))*fx*R/asp;
+    nd=mix(nd,nd2,inL);
+    gl_Position=vec4(nd*cl.w,cl.z,cl.w);
     float z=-mv.z;
-    gl_PointSize=min(uSize*uPR*(.5+aR*.9)*(15./max(z,.3))*(1.+c*2.)*(1.+uScatter*2.6)*(1.+push*.8), 52.);
+    float mag=inL*uMouseOn*(1.-x)*(1.-x);
+    gl_PointSize=min(uSize*uPR*(.5+aR*.9)*(15./max(z,.3))*(1.+c*2.)*(1.+uScatter*2.6)*(1.+mag*1.6), 56.);
     vW=mix(p.w,1.,c); vSc=uScatter;
     vA=smoothstep(.35,2.6,z)*(1.-smoothstep(40.,70.,z));
   }`;
