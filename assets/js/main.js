@@ -150,11 +150,11 @@ function initGL() {
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 100);
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, depthTest: false,
-    uniforms: { uS: { value: 0 }, uT: { value: 0 }, uSize: { value: mobile ? 2.4 : 2.1 }, uPR: { value: renderer.getPixelRatio() }, uDark: { value: 0 }, uOpacity: { value: 0 } },
+    uniforms: { uS: { value: 0 }, uT: { value: 0 }, uSize: { value: mobile ? 2.4 : 2.1 }, uPR: { value: renderer.getPixelRatio() }, uDark: { value: 0 }, uOpacity: { value: 0 }, uScatter: { value: 0 } },
     vertexShader: /* glsl */`
       attribute vec4 aS0,aS1,aS2,aS3,aS4; attribute float aR;
-      uniform float uS,uT,uSize,uPR;
-      varying float vW; varying float vA;
+      uniform float uS,uT,uSize,uPR,uScatter;
+      varying float vW; varying float vA; varying float vSc;
       vec4 shp(float i){ if(i<.5) return aS0; if(i<1.5) return aS1; if(i<2.5) return aS2; if(i<3.5) return aS3; return aS4; }
       void main(){
         float s=clamp(uS,0.,4.);
@@ -164,21 +164,24 @@ function initGL() {
         float arc=sin(3.14159*tt);
         vec3 dir=normalize(vec3(sin(aR*91.7),cos(aR*53.3),sin(aR*17.9+1.)));
         p.xyz+=dir*arc*(1.2+aR*2.8);
+        vec3 sd=normalize(vec3(sin(aR*91.3+1.7),cos(aR*47.1+.3),sin(aR*23.9+2.9)));
+        p.xyz=mix(p.xyz, sd*(4.5+fract(aR*43.7)*15.), uScatter);
         p.xyz+=.04*vec3(sin(uT*.8+aR*50.+p.y*1.7),cos(uT*.7+aR*31.+p.z*1.3),sin(uT*.6+aR*17.+p.x*1.5));
         float c=clamp(uS-4.,0.,1.);
         p.xyz*=1.-c*.988;
         vec4 mv=modelViewMatrix*vec4(p.xyz,1.);
         gl_Position=projectionMatrix*mv;
         float z=-mv.z;
-        gl_PointSize=min(uSize*uPR*(.5+aR*.9)*(15./max(z,.3))*(1.+c*2.), 42.);
+        gl_PointSize=min(uSize*uPR*(.5+aR*.9)*(15./max(z,.3))*(1.+c*2.)*(1.+uScatter*2.6), 48.);
+        vSc=uScatter;
         vW=mix(p.w,1.,c);
         vA=smoothstep(.35,2.6,z)*(1.-smoothstep(40.,70.,z));
       }`,
     fragmentShader: /* glsl */`
-      uniform float uDark,uOpacity; varying float vW,vA;
+      uniform float uDark,uOpacity; varying float vW,vA,vSc;
       void main(){
         vec2 q=gl_PointCoord-.5; float d=length(q); if(d>.5) discard;
-        float a=smoothstep(.5,.12,d);
+        float a=smoothstep(.5,mix(.12,0.,vSc),d)*(1.-vSc*.55);
         vec3 ink=mix(vec3(.09),vec3(.95),uDark);
         vec3 grey=mix(vec3(.66),vec3(.42),uDark);
         vec3 org=mix(vec3(1.,.42,.21),vec3(1.,.5,.26),uDark);
@@ -247,26 +250,70 @@ function preload(urls, onP) {
 async function boot() {
   gsap.registerPlugin(ScrollTrigger);
   gsap.config({ force3D: true });
-  const loadNum = $('#loadNum'), loadBar = $('#loadBar');
-  const counter = { v: 0 };
-  const show = () => { loadNum.textContent = String(Math.round(counter.v)).padStart(3, '0'); loadBar.style.transform = `scaleX(${counter.v / 100})`; };
   const imgs = ['p01-cut', 'p02-cut', 'p05-lens', 'p01-hero', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `assets/img/${n}.webp`);
-  await preload(imgs, p => gsap.to(counter, { v: p * 90, duration: .5, ease: 'power2.out', onUpdate: show, overwrite: true }));
-  if (!reduced) { try { initGL(); } catch (e) { console.warn('WebGL off', e); } }
-  await gsap.to(counter, { v: 100, duration: .45, ease: 'power2.inOut', onUpdate: show });
-  await document.fonts.ready;
-
-  // split headings
   const splits = $$('[data-split]').map(el => ({ el, parts: split(el) }));
+  gsap.set('#heroImg', { opacity: 0 });
+  gsap.set('.hero__title .split-w>span', { yPercent: 105 });
 
-  // loader exit + hero intro
+  // ---- loader: particles focus from bokeh into the objective rings ----
+  if (!reduced) { try { initGL(); } catch (e) { console.warn('WebGL off', e); } }
+  root.classList.add('is-loading');
+  const loadNum = $('#loadNum'), prog = $('#luiProg'), status = $('#luiStatus'), scan = $('#luiScan'), layer = $('#luiLayer');
+  const ticks = $('#luiTicks');
+  for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2, r0 = i % 5 ? 98 : 94; const l = document.createElementNS('http://www.w3.org/2000/svg', 'line'); l.setAttribute('x1', Math.cos(a) * r0); l.setAttribute('y1', Math.sin(a) * r0); l.setAttribute('x2', Math.cos(a) * 102); l.setAttribute('y2', Math.sin(a) * 102); ticks.append(l); }
+  const L = { p: 0, real: 0, scatter: 1, z: -6, spin: 0, op: 0, active: !!gl.renderer };
+  const STAT = ['INITIALIZING OPTICAL PATH', 'ALIGNING ELEMENTS', 'LOADING SPECIMENS', 'FOCUSING', 'READY'];
+  const t0 = performance.now();
+  const loaderTick = (time, dt) => {
+    const minT = clamp((performance.now() - t0) / 2600);
+    const target = Math.min(L.real, minT);
+    L.p += (target - L.p) * (1 - Math.exp(-dt / 1000 * 4));
+    const pct = Math.round(L.p * 100);
+    loadNum.textContent = String(pct).padStart(3, '0');
+    prog.style.strokeDashoffset = (1 - L.p).toFixed(4);
+    ticks.style.transform = `rotate(${time * 6}deg)`;
+    scan.textContent = (L.p * 0.987 + Math.sin(time * 9) * .002).toFixed(3);
+    layer.textContent = String(1 + Math.min(4, Math.floor(L.p * 5))).padStart(2, '0') + ' / 05';
+    const st = STAT[Math.min(4, Math.floor(L.p * 4.999))]; if (status.textContent !== st) status.textContent = st;
+    if (!L.active) return;
+    L.scatter = Math.max(0, 1 - ease(L.p * 1.08));
+    const u = gl.mat.uniforms;
+    u.uS.value = 0; u.uT.value = time; u.uDark.value = 1; u.uScatter.value = L.scatter;
+    u.uOpacity.value = Math.min(1, L.op);
+    gl.canvas.style.opacity = 1;
+    gl.holder.position.set(0, 0, L.z);
+    gl.holder.rotation.set(0, 0, time * .12 + L.spin);
+    gl.renderer.render(gl.scene, gl.cam);
+  };
+  gsap.ticker.add(loaderTick);
+  gsap.to(L, { op: 1, z: 0, duration: 2.2, ease: 'power3.out' });
+  await preload(imgs, p => { L.real = p; });
+  await document.fonts.ready;
+  L.real = 1;
+  await new Promise(r => { const c = () => (L.p > .985 ? r() : requestAnimationFrame(c)); c(); });
+  L.p = 1; loaderTick(gsap.ticker.time, 16);
+
+  // ---- exit: dive through the rings, iris opens onto the hero ----
+  const diag = Math.hypot(innerWidth, innerHeight) / 20 * 1.08;
   const tl = gsap.timeline();
-  tl.to('#loader', { yPercent: -100, duration: 1.1, ease: 'expo.inOut' })
-    .set('#loader', { display: 'none' });
+  tl.to('#lui > *', { opacity: 0, duration: .5, ease: 'power2.in', stagger: .04 })
+    .to('.lui__reticle', { scale: 2.4, opacity: 0, duration: 1.1, ease: 'power3.in' }, 0)
+    .to(L, { z: 30, spin: 1.4, duration: 1.5, ease: 'power3.in' }, .15)
+    .to('#irisRing', { scale: diag, duration: 1.15, ease: 'expo.inOut' }, .95)
+    .to('#irisFill', { scale: diag, duration: 1.05, ease: 'expo.inOut' }, 1.08)
+    .add(() => {
+      gsap.ticker.remove(loaderTick);
+      root.classList.remove('is-loading');
+      $('#loader').style.display = 'none'; $('#lui').style.display = 'none';
+      if (gl.mat) { gl.mat.uniforms.uScatter.value = 0; gl.canvas.style.opacity = 0; }
+    }, 2.1)
+    .to('#iris', { opacity: 0, duration: .45, ease: 'power1.out', onComplete: () => { $('#iris').style.display = 'none'; } }, 2.12);
   if (!reduced) {
-    tl.fromTo('.hero__title .split-w>span', { yPercent: 105 }, { yPercent: 0, duration: 1.25, ease: 'power4.out', stagger: .07, force3D: true }, '-=.45')
-      .fromTo('#heroImg', { yPercent: 14, opacity: 0, scale: .94 }, { yPercent: 0, opacity: 1, scale: 1, duration: 1.5, ease: 'power3.out', force3D: true }, '<.1')
-      .from(['.hero__meta', '.hero__bottom', '.marquee', '.hdr', '.hud'], { opacity: 0, y: 16, duration: 1, ease: 'expo.out', stagger: .05 }, '<.3');
+    tl.to('.hero__title .split-w>span', { yPercent: 0, duration: 1.3, ease: 'power4.out', stagger: .08, force3D: true }, 2.22)
+      .fromTo('#heroImg', { yPercent: 16, opacity: 0, scale: .9, rotate: -2 }, { yPercent: 0, opacity: 1, scale: 1, rotate: 0, duration: 1.7, ease: 'power3.out', force3D: true }, 2.3)
+      .from(['.hero__meta', '.hero__bottom', '.marquee', '.hdr', '.hud'], { opacity: 0, y: 16, duration: 1, ease: 'expo.out', stagger: .05 }, 2.55);
+  } else {
+    gsap.set('.hero__title .split-w>span', { yPercent: 0 }); gsap.set('#heroImg', { opacity: 1 });
   }
   if (reduced) { bindUI(); return; }
 
@@ -383,7 +430,7 @@ function frame(s, time, mx, my) {
   hudEl.style.opacity = (s < .55 || footIn) ? 0 : 1;
 
   // particles
-  if (!gl.renderer) return;
+  if (!gl.renderer || root.classList.contains('is-loading')) return;
   const op = curve(C.opacity, s);
   gl.canvas.style.opacity = op > 0 ? 1 : 0;
   if (op <= 0.001) return;

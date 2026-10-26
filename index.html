@@ -22,11 +22,22 @@
 <div class="grain" aria-hidden="true"></div>
 
 <!-- LOADER -->
-<div class="loader" id="loader" aria-hidden="true">
-  <div class="loader__row mono"><span>NEXUM / M1</span><span>CALIBRATING OPTICS</span></div>
-  <div class="loader__num"><span id="loadNum">000</span></div>
-  <div class="loader__bar"><i id="loadBar"></i></div>
+<div class="loader" id="loader" aria-hidden="true"></div>
+<div class="lui" id="lui" aria-hidden="true">
+  <div class="lui__row mono"><span>NEXUM / M1</span><span id="luiStatus">INITIALIZING OPTICAL PATH</span></div>
+  <svg class="lui__reticle" viewBox="-110 -110 220 220">
+    <circle class="r-base" r="92"/>
+    <circle class="r-prog" id="luiProg" r="92" pathLength="1"/>
+    <circle class="r-in" r="64"/>
+    <path class="r-x" d="M-108 0H-74M74 0H108M0 -108V-74M0 74V108"/>
+    <g class="r-ticks" id="luiTicks"></g>
+  </svg>
+  <div class="lui__bottom">
+    <div class="lui__count"><span class="mono">FOCUS</span><b id="loadNum">000</b></div>
+    <div class="lui__meta mono"><span>SCAN</span><span id="luiScan">0.000</span><span>LAYER</span><span id="luiLayer">01 / 05</span></div>
+  </div>
 </div>
+<div class="iris" id="iris" aria-hidden="true"><i class="iris__ring" id="irisRing"></i><i class="iris__fill" id="irisFill"></i></div>
 
 <!-- CURSOR -->
 <div class="cursor" id="cursor" aria-hidden="true"><i></i><span id="cursorTxt"></span></div>
