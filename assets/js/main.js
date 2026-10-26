@@ -246,10 +246,11 @@ function preload(urls, onP) {
 
 async function boot() {
   gsap.registerPlugin(ScrollTrigger);
+  gsap.config({ force3D: true });
   const loadNum = $('#loadNum'), loadBar = $('#loadBar');
   const counter = { v: 0 };
   const show = () => { loadNum.textContent = String(Math.round(counter.v)).padStart(3, '0'); loadBar.style.transform = `scaleX(${counter.v / 100})`; };
-  const imgs = ['p02-cut', 'p05-lens', 'p01-hero', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `assets/img/${n}.webp`);
+  const imgs = ['p01-cut', 'p02-cut', 'p05-lens', 'p01-hero', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `assets/img/${n}.webp`);
   await preload(imgs, p => gsap.to(counter, { v: p * 90, duration: .5, ease: 'power2.out', onUpdate: show, overwrite: true }));
   if (!reduced) { try { initGL(); } catch (e) { console.warn('WebGL off', e); } }
   await gsap.to(counter, { v: 100, duration: .45, ease: 'power2.inOut', onUpdate: show });
@@ -263,9 +264,8 @@ async function boot() {
   tl.to('#loader', { yPercent: -100, duration: 1.1, ease: 'expo.inOut' })
     .set('#loader', { display: 'none' });
   if (!reduced) {
-    tl.from('.hero__title .split-w>span', { yPercent: 105, duration: 1.4, ease: 'expo.out', stagger: .06 }, '-=.45')
-      .fromTo('.hero__title', { fontStretch: '62%' }, { fontStretch: '125%', duration: 1.8, ease: 'expo.out' }, '<')
-      .from('.hero__product', { yPercent: 18, opacity: 0, scale: .92, duration: 1.6, ease: 'expo.out' }, '<.15')
+    tl.fromTo('.hero__title .split-w>span', { yPercent: 105 }, { yPercent: 0, duration: 1.25, ease: 'power4.out', stagger: .07, force3D: true }, '-=.45')
+      .fromTo('#heroImg', { yPercent: 14, opacity: 0, scale: .94 }, { yPercent: 0, opacity: 1, scale: 1, duration: 1.5, ease: 'power3.out', force3D: true }, '<.1')
       .from(['.hero__meta', '.hero__bottom', '.marquee', '.hdr', '.hud'], { opacity: 0, y: 16, duration: 1, ease: 'expo.out', stagger: .05 }, '<.3');
   }
   if (reduced) { bindUI(); return; }
@@ -280,7 +280,7 @@ async function boot() {
   // heading reveals
   splits.forEach(({ el, parts }) => {
     if (el.closest('.hero')) return;
-    gsap.from(parts, { yPercent: 108, duration: 1.2, ease: 'expo.out', stagger: .05, scrollTrigger: { trigger: el, start: 'top 82%', toggleActions: 'play none none reverse' } });
+    gsap.fromTo(parts, { yPercent: 108 }, { yPercent: 0, duration: 1.1, ease: 'power4.out', stagger: .06, force3D: true, scrollTrigger: { trigger: el, start: 'top 82%', toggleActions: 'play none none reverse' } });
   });
   $$('.lead, .note, .kicker').forEach(el => {
     if (el.closest('.hero')) return;
@@ -288,7 +288,7 @@ async function boot() {
   });
 
   // hero parallax on exit
-  gsap.to('.hero__product', { yPercent: -16, scale: 1.06, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
+  gsap.to('#heroPar', { yPercent: -12, scale: 1.05, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
   gsap.to('.hero__line.l1', { xPercent: -14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
   gsap.to('.hero__line.l2', { xPercent: 14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
 

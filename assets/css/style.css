@@ -30,7 +30,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .k{display:block;width:0;height:0;pointer-events:none}
 .k--end{position:absolute;left:0;bottom:100vh}
 .split-w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.06em;margin-bottom:-.06em}
-.split-w>span{display:inline-block;will-change:transform}
+.split-w>span{display:inline-block;will-change:transform;backface-visibility:hidden}
 
 /* canvas + grain */
 .gl{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0}
@@ -93,12 +93,12 @@ html.has-cursor .cursor{display:block}
 .hero__grid{position:relative;height:100vh;height:100svh;min-height:640px}
 .hero__meta{position:absolute;top:96px;left:var(--gut);display:flex;flex-direction:column;opacity:.6}
 .hero__meta--r{left:auto;right:var(--gut);text-align:right}
-.hero__title{position:absolute;left:0;right:0;top:50%;transform:translateY(-58%);font-size:clamp(76px,19.6vw,400px);line-height:.8;letter-spacing:-.06em;z-index:1;pointer-events:none}
+.hero__title{position:absolute;left:0;right:0;top:50%;transform:translateY(-60%);font-size:clamp(64px,min(16.4vw,36vh),380px);line-height:.8;letter-spacing:-.06em;z-index:1;pointer-events:none}
 .hero__line{display:block;white-space:nowrap}
 .hero__line.l1{padding-left:var(--gut)}
 .hero__line.l2{text-align:right;padding-right:var(--gut)}
-.hero__product{position:absolute;z-index:2;left:50%;top:50%;width:min(46vw,780px);transform:translate(-44%,-50%);pointer-events:none}
-.hero__product img{width:100%}
+.hero__product{position:absolute;z-index:2;left:52%;top:52%;width:min(50vw,96vh,1000px);transform:translate(-50%,-50%);pointer-events:none}
+.hero__par,.hero__product img{width:100%;will-change:transform}
 .hero__bottom{position:absolute;left:var(--gut);right:var(--gut);bottom:108px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;z-index:3}
 .hero__sub{font-size:clamp(17px,1.4vw,22px);max-width:24ch;line-height:1.3;font-weight:500}
 .hero__cta{display:inline-flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid currentColor}
@@ -259,7 +259,7 @@ html.reduced .lw{transform:none!important}
   .pill{height:36px;padding:0 14px;font-size:10px}
   .hero__meta{top:74px}
   .hero__title{top:19%;transform:none;font-size:16.2vw}
-  .hero__product{width:80vw;top:auto;bottom:128px;transform:translateX(-46%)}
+  .hero__product{width:96vw;top:auto;bottom:118px;left:50%;transform:translateX(-50%)}
   .hero__bottom{bottom:84px;flex-direction:column;align-items:flex-start;gap:12px}
   .hero__sub{display:none}
   .marquee{height:48px}
