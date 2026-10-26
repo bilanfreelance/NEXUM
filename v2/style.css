@@ -44,7 +44,7 @@ html.is-loading{overflow:hidden}
 .lui__row{display:flex;justify-content:space-between;opacity:.75}
 .lui__reticle{position:absolute;left:50%;top:50%;width:min(46vmin,420px);height:min(46vmin,420px);transform:translate(-50%,-50%);overflow:visible}
 .lui__reticle circle,.lui__reticle path{fill:none;stroke:rgba(255,255,255,.28);stroke-width:1;vector-effect:non-scaling-stroke}
-.lui__reticle .r-prog{stroke:var(--acc);stroke-width:2;stroke-dasharray:1;stroke-dashoffset:1;transform:rotate(-90deg)}
+.lui__reticle .r-prog{stroke:var(--acc);stroke-width:2;stroke-dasharray:1 1;stroke-dashoffset:1;transform:rotate(-90deg)}
 .lui__reticle .r-in{stroke-dasharray:2 6;stroke:rgba(255,255,255,.35)}
 .lui__reticle .r-ticks line{stroke:rgba(255,255,255,.4);stroke-width:1;vector-effect:non-scaling-stroke}
 .lui__bottom{position:absolute;left:var(--gut);right:var(--gut);bottom:var(--gut);display:flex;justify-content:space-between;align-items:flex-end}

@@ -425,6 +425,7 @@ function preload(urls, onP) {
 
 /* ================= boot ================= */
 async function boot() {
+  window.__nxBooted = true;
   gsap.registerPlugin(ScrollTrigger);
   gsap.config({ force3D: true });
   root.classList.add('is-loading');
