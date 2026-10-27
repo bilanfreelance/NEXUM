@@ -274,7 +274,8 @@ function preload(urls, onP) {
 
 async function boot() {
   gsap.registerPlugin(ScrollTrigger);
-  gsap.config({ force3D: true });
+  gsap.config({ force3D: 'auto' });
+  ScrollTrigger.config({ ignoreMobileResize: true });
   const imgs = ['p01-cut', 'p02-cut', 'p05-lens', 'p01-hero', 'm01', 'm02', 'm04', 'm05', 'm06', 'm07', 'm09'].map(n => `assets/img/${innerWidth < 760 ? 'sm/' : ''}${n}.webp`);
   const splits = $$('[data-split]').map(el => ({ el, parts: split(el) }));
   gsap.set('#heroImg', { opacity: 0 });
@@ -335,7 +336,7 @@ async function boot() {
     .to(intro, { k: 1, duration: 2.2, ease: 'power2.out' }, 2.1)
     .to('#iris', { opacity: 0, duration: .45, ease: 'power1.out', onComplete: () => { $('#iris').style.display = 'none'; } }, 2.12);
   if (!reduced) {
-    tl.to('.hero__title .split-w>span', { yPercent: 0, duration: 1.3, ease: 'power4.out', stagger: .08, force3D: true }, 2.22)
+    tl.to('.hero__title .split-w>span', { yPercent: 0, duration: 1.3, ease: 'power4.out', stagger: .08 }, 2.22)
       .fromTo('#heroImg', { yPercent: 16, opacity: 0, scale: .9, rotate: -2 }, { yPercent: 0, opacity: 1, scale: 1, rotate: 0, duration: 1.7, ease: 'power3.out', force3D: true }, 2.3)
       .from(['.hero__meta', '.hero__bottom', '.marquee', '.hdr', '.hud'], { opacity: 0, y: 16, duration: 1, ease: 'expo.out', stagger: .05 }, 2.55);
   } else {
@@ -353,7 +354,7 @@ async function boot() {
   // heading reveals
   splits.forEach(({ el, parts }) => {
     if (el.closest('.hero')) return;
-    gsap.fromTo(parts, { yPercent: 108 }, { yPercent: 0, duration: 1.1, ease: 'power4.out', stagger: .06, force3D: true, scrollTrigger: { trigger: el, start: 'top 82%', toggleActions: 'play none none reverse' } });
+    gsap.fromTo(parts, { yPercent: 108 }, { yPercent: 0, duration: 1.1, ease: 'power4.out', stagger: .06, scrollTrigger: { trigger: el, start: 'top 82%', toggleActions: 'play none none reverse' } });
   });
   $$('.lead, .note, .kicker').forEach(el => {
     if (el.closest('.hero')) return;
@@ -374,7 +375,13 @@ async function boot() {
 
   // marquee (speeds up with scroll velocity)
   const mq = gsap.to('#marquee', { xPercent: -50, duration: 22, ease: 'none', repeat: -1 });
-  lenis.on('scroll', e => { gsap.to(mq, { timeScale: 1 + Math.min(Math.abs(e.velocity) * .25, 6), duration: .2, overwrite: true }); gsap.to(mq, { timeScale: 1, duration: 1.2, delay: .2 }); });
+  let mqVel = 0, mqTs = 1;
+  lenis.on('scroll', e => { mqVel = Math.max(mqVel, Math.abs(e.velocity)); });
+  gsap.ticker.add((t, dt) => {
+    const k = 1 - Math.exp(-(dt / 1000) * 6);
+    mqTs += (1 + Math.min(mqVel * .25, 6) - mqTs) * k; mqVel *= Math.exp(-(dt / 1000) * 5);
+    if (Math.abs(mqTs - mq.timeScale()) > .002) mq.timeScale(mqTs);
+  });
 
   // lens: words split apart while we dive
   const lensPin = $('#lens .pinblock');
@@ -419,8 +426,8 @@ async function boot() {
 
   ScrollTrigger.create({ trigger: '.foot', start: 'top 92%', onToggle: st => { footIn = st.isActive; } });
   bindUI(lenis);
-  measureKeys();
-  ScrollTrigger.addEventListener('refresh', measureKeys);
+  measureKeys(); measureUI();
+  ScrollTrigger.addEventListener('refresh', () => { measureKeys(); measureUI(); });
 
   // story loop
   let s = storyAt(scrollY), mx = 0, my = 0, tmx = 0, tmy = 0;
@@ -430,22 +437,31 @@ async function boot() {
     const k = 1 - Math.exp(-(dt / 1000) * 7);
     s += (target - s) * k; if (Math.abs(target - s) < 1e-4) s = target;
     mx += (tmx - mx) * k; my += (tmy - my) * k;
-    frame(s, time, mx, my);
+    frame(s, time, mx, my, lenis.scroll);
   });
 }
 
-function frame(s, time, mx, my) {
-  // background + foreground colours
+const ui = { hdr: $('#hdr'), hud: $('#hud'), bg: $('#bgfx'), trackH: 0, heroCX: 0, heroCY: 0 };
+const prev = {};
+const put = (key, v, fn) => { if (prev[key] !== v) { prev[key] = v; fn(v); } };
+function measureUI() {
+  const t = $('.rail__track'); ui.trackH = t ? t.offsetHeight : 0;
+  const r = heroFig.getBoundingClientRect();
+  ui.heroCX = r.left + r.width / 2; ui.heroCY = r.top + scrollY + r.height / 2;
+}
+
+function frame(s, time, mx, my, scroll) {
+  // background: compositor-only fade; text colour vars updated in coarse steps
   const dark = curve(C.dark, s);
-  const dq = Math.round(dark * 100) / 100;
+  put('bg', Math.round(dark * 1000) / 1000, v => { ui.bg.style.opacity = v; });
+  const dq = Math.round(dark * 10) / 10;
   if (dq !== lastDark) {
     lastDark = dq;
     const bg = Math.round(lerp(255, 10, dq)), fg = Math.round(lerp(23, 245, dq));
     root.style.setProperty('--bg', `rgb(${bg},${bg},${bg})`);
     root.style.setProperty('--fg', `rgb(${fg},${fg},${fg})`);
-    const onDark = dq > .5 && s > 1 && s < 10.9;
-    $('#hdr').style.color = onDark ? '#f5f5f5' : '';
   }
+  put('hdr', dq > .5 && s > 1 && s < 10.9 ? '#f5f5f5' : '', v => { ui.hdr.style.color = v; });
   // HUD
   let sc = SCENES[0]; for (const x of SCENES) if (s >= x[0]) sc = x;
   if (sc[1] !== lastScene) { lastScene = sc[1]; hud.num.textContent = sc[1]; hud.name.textContent = sc[2]; }
@@ -453,19 +469,17 @@ function frame(s, time, mx, my) {
   if (s > 11.6) ty = [0, ''];
   if (ty[1] !== lastType) { lastType = ty[1]; hud.type.textContent = ty[1]; }
   const d = curve(C.depth, s);
-  hud.marker.style.top = (d * 100) + '%';
+  put('mk', Math.round(d * ui.trackH * 10) / 10, v => { hud.marker.style.transform = `translate3d(0,${v}px,0)`; });
   const li = Math.round(d * 4);
-  hud.labels.forEach((l, i) => l.classList.toggle('on', i === li));
-  if (hud.scale.textContent !== SCALES[li]) hud.scale.textContent = SCALES[li];
-  hud.rail.classList.toggle('off', s < .7 || s > 11.3);
-  const hudEl = $('#hud'); const hudDark = (s > 11.7 && s < 12.9) || (s > 13.85);
-  hudEl.style.color = hudDark ? '#f5f5f5' : '';
-  hudEl.style.opacity = (s < .55 || footIn) ? 0 : 1;
+  put('li', li, v => { hud.labels.forEach((l, i) => l.classList.toggle('on', i === v)); hud.scale.textContent = SCALES[v]; });
+  put('rail', s < .7 || s > 11.3, v => { hud.rail.classList.toggle('off', v); });
+  put('hudC', (s > 11.7 && s < 12.9) || (s > 13.85) ? '#f5f5f5' : '', v => { ui.hud.style.color = v; });
+  put('hudO', (s < .55 || footIn) ? 0 : 1, v => { ui.hud.style.opacity = v; });
 
   // particles
   if (!gl.renderer || root.classList.contains('is-loading')) return;
   const op = curve(C.opacity, s);
-  gl.canvas.style.opacity = op > 0 ? 1 : 0;
+  put('glO', op > 0 ? 1 : 0, v => { gl.canvas.style.opacity = v; });
   if (op <= 0.001) return;
   const u = gl.mat.uniforms;
   const heroA = curve(C.heroA, s);
@@ -476,7 +490,7 @@ function frame(s, time, mx, my) {
   u.uOpacity.value = op * lerp(1, intro.k, heroA);
   u.uScatter.value = (1 - intro.k) * heroA;
   let sx = mobile ? 0 : curve(C.gx, s), sy = mobile ? curve(C.gx, s) * .55 : 0;
-  if (heroA > 0) { const [ax, ay] = anchorOf(heroFig); sx = lerp(sx, ax, heroA); sy = lerp(sy, ay, heroA); }
+  if (heroA > 0) { const [ax, ay] = anchorOf(scroll); sx = lerp(sx, ax, heroA); sy = lerp(sy, ay, heroA); }
   gl.holder.position.set(sx, sy, curve(C.gz, s));
   gl.holder.scale.setScalar(mobile ? lerp(1, .64, heroA) : 1);
   const spin = curve(C.spin, s);
@@ -487,9 +501,10 @@ function frame(s, time, mx, my) {
 
 const intro = { k: 0 };
 const heroFig = document.querySelector('.hero__product');
-function anchorOf(el) {
-  const r = el.getBoundingClientRect(), halfH = Math.tan(THREE.MathUtils.degToRad(17.5)) * 16, halfW = halfH * innerWidth / innerHeight;
-  return [((r.left + r.width / 2) / innerWidth * 2 - 1) * halfW, -((r.top + r.height / 2) / innerHeight * 2 - 1) * halfH];
+const HALF_H = Math.tan(THREE.MathUtils.degToRad(17.5)) * 16;
+function anchorOf(scroll) { // cached geometry: no layout reads inside the frame loop
+  const halfW = HALF_H * innerWidth / innerHeight, cy = ui.heroCY - scroll;
+  return [(ui.heroCX / innerWidth * 2 - 1) * halfW, -(cy / innerHeight * 2 - 1) * HALF_H];
 }
 /* ============ UI ============ */
 function bindUI(lenis) {
@@ -509,7 +524,7 @@ function bindUI(lenis) {
   if (!finePointer || reduced) return;
   root.classList.add('has-cursor');
   const cur = $('#cursor'), txt = $('#cursorTxt');
-  const xTo = gsap.quickTo(cur, 'x', { duration: .45, ease: 'power3' }), yTo = gsap.quickTo(cur, 'y', { duration: .45, ease: 'power3' });
+  const xTo = gsap.quickTo(cur, 'x', { duration: .12, ease: 'power2.out' }), yTo = gsap.quickTo(cur, 'y', { duration: .12, ease: 'power2.out' });
   addEventListener('pointermove', e => { xTo(e.clientX); yTo(e.clientY); }, { passive: true });
   document.addEventListener('pointerover', e => {
     const c = e.target.closest('[data-cursor]'), l = e.target.closest('a,button,input');
@@ -525,9 +540,11 @@ function bindUI(lenis) {
 }
 
 let lastW = innerWidth;
+let rzT;
 addEventListener('resize', () => {
   if (innerWidth === lastW && mobile) return;
   lastW = innerWidth; mobile = innerWidth < 760;
-  resizeGL(); ScrollTrigger.refresh();
+  resizeGL();
+  clearTimeout(rzT); rzT = setTimeout(() => ScrollTrigger.refresh(), 150);
 });
 boot();

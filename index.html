@@ -18,6 +18,7 @@
 </head>
 <body>
 
+<div class="bgfx" id="bgfx" aria-hidden="true"></div>
 <canvas class="gl" id="gl" aria-hidden="true"></canvas>
 <div class="grain" aria-hidden="true"></div>
 
@@ -77,7 +78,7 @@
         <span class="hero__line l1" data-split>SEE</span>
         <span class="hero__line l2" data-split>BEYOND<em>.</em></span>
       </h1>
-      <figure class="hero__product"><div class="hero__mouse" id="heroMouse"><div class="hero__par" id="heroPar"><picture><source media="(max-width:760px)" srcset="assets/img/sm/p01-cut.webp"><img id="heroImg" src="assets/img/p01-cut.webp" alt="NEXUM M1 digital microscope, studio render" width="1536" height="1024"></picture></div></div></figure>
+      <figure class="hero__product"><div class="hero__mouse" id="heroMouse"><div class="hero__par" id="heroPar"><picture><source media="(max-width:760px)" srcset="assets/img/sm/p01-cut.webp"><img decoding="async" id="heroImg" src="assets/img/p01-cut.webp" alt="NEXUM M1 digital microscope, studio render" width="1536" height="1024"></picture></div></div></figure>
       <div class="hero__bottom">
         <p class="hero__sub">A new perspective on the world hidden from the naked eye.</p>
         <a href="#lens" class="hero__cta mono" data-to="#lens" data-cursor="DIVE"><span class="dot"></span>Explore the invisible<b>↓</b></a>
@@ -100,7 +101,7 @@
           <span class="lw lw--r" id="lwR"><span class="lw__in" id="lwRi">CLOSER<em>.</em></span></span>
         </h2>
         <p class="lens__sub" id="lensSub">There’s more to see.</p>
-        <figure class="lens__card" id="lensCard"><picture><source media="(max-width:760px)" srcset="assets/img/sm/p05-lens.webp"><img src="assets/img/p05-lens.webp" alt="M1 objective close-up render" loading="lazy"></picture><figcaption class="mono">FIG. 02 — M1 OBJECTIVE · RENDER</figcaption></figure>
+        <figure class="lens__card" id="lensCard"><picture><source media="(max-width:760px)" srcset="assets/img/sm/p05-lens.webp"><img decoding="async" width="1618" height="910" src="assets/img/p05-lens.webp" alt="M1 objective close-up render" loading="lazy"></picture><figcaption class="mono">FIG. 02 — M1 OBJECTIVE · RENDER</figcaption></figure>
       </div>
       <i class="k k--end" data-k="2"></i>
     </div>
@@ -127,11 +128,11 @@
             <p class="display h-lg">EVERY<br>STRUCTURE<br>TELLS<br>A STORY.</p>
             <span class="mono note">Artistic microstructure visualizations — not captured by M1.</span>
           </div>
-          <figure class="gcard" data-cursor="DRAG"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m01.webp"><img src="assets/img/m01.webp" alt="Visualization of spiked spores" loading="lazy"></picture><figcaption><b class="mono">S—01</b><span>Spore field</span></figcaption></figure>
-          <figure class="gcard gcard--tall"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m02.webp"><img src="assets/img/m02.webp" alt="Visualization of a spore surface" loading="lazy"></picture><figcaption><b class="mono">S—02</b><span>Membrane</span></figcaption></figure>
-          <figure class="gcard"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m04.webp"><img src="assets/img/m04.webp" alt="Visualization of a cellular shell" loading="lazy"></picture><figcaption><b class="mono">S—03</b><span>Cell shell</span></figcaption></figure>
-          <figure class="gcard gcard--tall"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m06.webp"><img src="assets/img/m06.webp" alt="Visualization of tissue turning into molecular network" loading="lazy"></picture><figcaption><b class="mono">S—04</b><span>Tissue → network</span></figcaption></figure>
-          <figure class="gcard"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m09.webp"><img src="assets/img/m09.webp" alt="Monochrome visualization of a molecular network" loading="lazy"></picture><figcaption><b class="mono">S—05</b><span>Mono network</span></figcaption></figure>
+          <figure class="gcard" data-cursor="DRAG"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m01.webp"><img decoding="async" width="1672" height="941" src="assets/img/m01.webp" alt="Visualization of spiked spores" loading="lazy"></picture><figcaption><b class="mono">S—01</b><span>Spore field</span></figcaption></figure>
+          <figure class="gcard gcard--tall"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m02.webp"><img decoding="async" width="1672" height="941" src="assets/img/m02.webp" alt="Visualization of a spore surface" loading="lazy"></picture><figcaption><b class="mono">S—02</b><span>Membrane</span></figcaption></figure>
+          <figure class="gcard"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m04.webp"><img decoding="async" width="1672" height="941" src="assets/img/m04.webp" alt="Visualization of a cellular shell" loading="lazy"></picture><figcaption><b class="mono">S—03</b><span>Cell shell</span></figcaption></figure>
+          <figure class="gcard gcard--tall"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m06.webp"><img decoding="async" width="1672" height="941" src="assets/img/m06.webp" alt="Visualization of tissue turning into molecular network" loading="lazy"></picture><figcaption><b class="mono">S—04</b><span>Tissue → network</span></figcaption></figure>
+          <figure class="gcard"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m09.webp"><img decoding="async" width="1672" height="941" src="assets/img/m09.webp" alt="Monochrome visualization of a molecular network" loading="lazy"></picture><figcaption><b class="mono">S—05</b><span>Mono network</span></figcaption></figure>
         </div>
         <div class="gallery__count mono"><span id="galNum">01</span> / 05</div>
       </div>
@@ -146,7 +147,7 @@
       <h2 class="clip__word display" id="clipWord" style="--img:url(../img/m05.webp)">SURFACE</h2>
       <p class="clip__line display">IS NEVER JUST A SURFACE<em>.</em></p>
     </div>
-    <figure class="bleed" id="bleed1"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m07.webp"><img src="assets/img/m07.webp" alt="Visualization of a porous molecular network" loading="lazy"></picture>
+    <figure class="bleed" id="bleed1"><picture><source media="(max-width:760px)" srcset="assets/img/sm/m07.webp"><img decoding="async" width="1672" height="941" src="assets/img/m07.webp" alt="Visualization of a porous molecular network" loading="lazy"></picture>
       <figcaption class="bleed__cap wrap"><span class="mono">FIG. 04 — ARTISTIC VISUALIZATION</span><p class="display h-lg">DISCOVER<br>WHAT HIDES<br>IN PLAIN SIGHT.</p></figcaption>
     </figure>
     <i class="k" data-k="5"></i>
@@ -201,7 +202,7 @@
           <h2 class="display h-xxl eng__title"><span data-split>MEET</span><span class="eng__m1">NEXUM <em>M1</em></span></h2>
         </div>
         <figure class="eng__fig" id="engFig">
-          <picture><source media="(max-width:760px)" srcset="assets/img/sm/p02-cut.webp"><img src="assets/img/p02-cut.webp" alt="NEXUM M1 digital microscope" loading="lazy"></picture>
+          <picture><source media="(max-width:760px)" srcset="assets/img/sm/p02-cut.webp"><img decoding="async" width="1037" height="866" src="assets/img/p02-cut.webp" alt="NEXUM M1 digital microscope" loading="lazy"></picture>
           <svg class="eng__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <path d="M34.7 26 L-8 26 L-22 30"/><path d="M43.5 57 L-8 57 L-22 52"/><path d="M43.5 70 L-8 70 L-22 74"/>
           </svg>
@@ -214,9 +215,9 @@
       </div>
     </div>
     <div class="details wrap">
-      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/interface-v1b.webp"><img src="assets/img/interface-v1b.webp" alt="M1 display detail" loading="lazy" style="object-position:50% 50%"></picture></div><figcaption><b class="mono">01</b><strong>Digital interface</strong><span>Integrated display with direct magnification control.</span></figcaption></figure>
-      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/optics-v1.webp"><img src="assets/img/optics-v1.webp" alt="M1 objective detail" loading="lazy" style="object-position:50% 50%"></picture></div><figcaption><b class="mono">02</b><strong>Optical system</strong><span>A precision objective, framed in machined aluminium.</span></figcaption></figure>
-      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/illumination-v1b.webp"><img src="assets/img/illumination-v1b.webp" alt="M1 illumination detail" loading="lazy" style="object-position:50% 50%"></picture></div><figcaption><b class="mono">03</b><strong>Illumination</strong><span>Controlled, adjustable light under the stage.</span></figcaption></figure>
+      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/interface-v1b.webp"><img decoding="async" width="1086" height="1448" src="assets/img/interface-v1b.webp" alt="M1 display detail" loading="lazy" style="object-position:50% 50%"></picture></div><figcaption><b class="mono">01</b><strong>Digital interface</strong><span>Integrated display with direct magnification control.</span></figcaption></figure>
+      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/optics-v1.webp"><img decoding="async" width="1086" height="1448" src="assets/img/optics-v1.webp" alt="M1 objective detail" loading="lazy" style="object-position:50% 50%"></picture></div><figcaption><b class="mono">02</b><strong>Optical system</strong><span>A precision objective, framed in machined aluminium.</span></figcaption></figure>
+      <figure class="dcard" data-cursor="VIEW"><div class="dcard__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/illumination-v1b.webp"><img decoding="async" width="1086" height="1448" src="assets/img/illumination-v1b.webp" alt="M1 illumination detail" loading="lazy" style="object-position:50% 50%"></picture></div><figcaption><b class="mono">03</b><strong>Illumination</strong><span>Controlled, adjustable light under the stage.</span></figcaption></figure>
     </div>
   </section>
 
@@ -228,7 +229,7 @@
         <div class="kicker mono"><i></i>07 — PRECISION, DEFINED</div>
         <h2 class="display h-lg" data-split>THE DETAILS<br>BEHIND<br>THE VIEW<em>.</em></h2>
         <p class="lead">Considered engineering. A focused interface. A product designed around the demands of digital observation.</p>
-        <figure class="specs__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/p06-core.webp"><img src="assets/img/p06-core.webp" alt="Glowing optical core render" loading="lazy"></picture></figure>
+        <figure class="specs__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/p06-core.webp"><img decoding="async" width="1672" height="941" src="assets/img/p06-core.webp" alt="Glowing optical core render" loading="lazy"></picture></figure>
       </div>
       <div class="specs__table" role="table" aria-label="Specifications">
         <div class="row" role="row"><span class="row__i">01</span><span role="cell" class="row__k">Imaging system</span><span role="cell" class="row__v">Digital imaging</span></div>
@@ -261,7 +262,7 @@
           <p class="form__msg mono" id="formMsg" role="status"></p>
         </form>
       </div>
-      <figure class="cta__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/p01-cut.webp"><img src="assets/img/p01-cut.webp" alt="NEXUM M1 microscope" loading="lazy"></picture></figure>
+      <figure class="cta__img"><picture><source media="(max-width:760px)" srcset="assets/img/sm/p01-cut.webp"><img decoding="async" width="1536" height="1024" src="assets/img/p01-cut.webp" alt="NEXUM M1 microscope" loading="lazy"></picture></figure>
     </div>
   </section>
 
